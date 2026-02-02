@@ -202,6 +202,18 @@ struct TaskDrawerRow: View {
                         .foregroundStyle(progress.completed == progress.total ? .green : .secondary)
                     }
 
+                    // Attachments indicator
+                    let attachmentCount = viewModel.project.attachments(for: task.id).count
+                    if attachmentCount > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "paperclip")
+                                .font(.system(size: 10))
+                            Text("\(attachmentCount)")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+
                     // Due date
                     if let dueDate = task.dueDate {
                         HStack(spacing: 2) {
