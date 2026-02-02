@@ -815,6 +815,7 @@ struct ProjectAttachmentSheet: View {
     @State private var selectedTab: AttachmentTab = .photos
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var loadedImages: [UIImage] = []
+    @State private var selectedFiles: [(url: URL, name: String, size: Int64)] = []
     @State private var showingUploadDetails = false
     @State private var showingFilePicker = false
 
@@ -844,9 +845,14 @@ struct ProjectAttachmentSheet: View {
             tabBar
         }
         .sheet(isPresented: $showingUploadDetails) {
-            AttachmentUploadSheet(viewModel: viewModel, selectedImages: loadedImages) {
+            AttachmentUploadSheet(
+                viewModel: viewModel,
+                selectedImages: loadedImages,
+                selectedFiles: selectedFiles
+            ) {
                 selectedPhotoItems = []
                 loadedImages = []
+                selectedFiles = []
                 dismiss()
             }
         }
@@ -1055,26 +1061,20 @@ struct ProjectAttachmentSheet: View {
         ) { result in
             switch result {
             case .success(let urls):
-                // Add files to project
-                for url in urls {
+                // Store selected files and show upload sheet for tagging
+                selectedFiles = urls.compactMap { url in
                     let accessing = url.startAccessingSecurityScopedResource()
-                    defer {
-                        if accessing {
-                            url.stopAccessingSecurityScopedResource()
-                        }
-                    }
-
                     let fileName = url.lastPathComponent
                     let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-
-                    viewModel.addAttachment(
-                        type: .document,
-                        fileName: fileName,
-                        fileSize: fileSize,
-                        fileURL: url
-                    )
+                    if accessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                    return (url: url, name: fileName, size: fileSize)
                 }
-                dismiss()
+                // Show upload sheet for tagging
+                if !selectedFiles.isEmpty {
+                    showingUploadDetails = true
+                }
             case .failure:
                 break
             }
@@ -1151,6 +1151,7 @@ struct ProjectAttachmentSheet: View {
 struct AttachmentUploadSheet: View {
     @Bindable var viewModel: ProjectChatViewModel
     let selectedImages: [UIImage]
+    let selectedFiles: [(url: URL, name: String, size: Int64)]
     let onComplete: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -1158,7 +1159,9 @@ struct AttachmentUploadSheet: View {
     @State private var selectedSubtaskId: UUID? = nil
     @State private var caption: String = ""
 
-    var selectedCount: Int { selectedImages.count }
+    var selectedCount: Int { selectedImages.count + selectedFiles.count }
+    var hasImages: Bool { !selectedImages.isEmpty }
+    var hasFiles: Bool { !selectedFiles.isEmpty }
 
     private var selectedTask: DONEOTask? {
         viewModel.project.tasks.first { $0.id == selectedTaskId }
@@ -1176,19 +1179,40 @@ struct AttachmentUploadSheet: View {
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(selectedImages.indices.prefix(6), id: \.self) { index in
+                                // Show images
+                                ForEach(selectedImages.indices.prefix(4), id: \.self) { index in
                                     Image(uiImage: selectedImages[index])
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: 60, height: 60)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                 }
-                                if selectedCount > 6 {
+
+                                // Show files
+                                ForEach(selectedFiles.indices.prefix(4), id: \.self) { index in
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Theme.primaryLight)
+                                        .frame(width: 60, height: 60)
+                                        .overlay {
+                                            VStack(spacing: 2) {
+                                                Image(systemName: "doc.fill")
+                                                    .font(.system(size: 20))
+                                                    .foregroundStyle(Theme.primary)
+                                                Text(selectedFiles[index].name)
+                                                    .font(.system(size: 8))
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(4)
+                                        }
+                                }
+
+                                if selectedCount > 4 {
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(Color(uiColor: .secondarySystemBackground))
                                         .frame(width: 60, height: 60)
                                         .overlay {
-                                            Text("+\(selectedCount - 6)")
+                                            Text("+\(selectedCount - 4)")
                                                 .font(.system(size: 14, weight: .semibold))
                                                 .foregroundStyle(.secondary)
                                         }
@@ -1321,8 +1345,13 @@ struct AttachmentUploadSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") {
                         // Create attachment items from images
-                        let items: [(type: AttachmentType, fileName: String, fileSize: Int64, fileURL: URL?)] = selectedImages.enumerated().map { index, _ in
+                        var items: [(type: AttachmentType, fileName: String, fileSize: Int64, fileURL: URL?)] = selectedImages.enumerated().map { index, _ in
                             (type: .image, fileName: "Photo_\(Date().timeIntervalSince1970)_\(index).jpg", fileSize: 0, fileURL: nil)
+                        }
+
+                        // Add file items
+                        items += selectedFiles.map { file in
+                            (type: .document, fileName: file.name, fileSize: file.size, fileURL: file.url)
                         }
 
                         viewModel.addAttachments(
@@ -1336,7 +1365,7 @@ struct AttachmentUploadSheet: View {
                         onComplete()
                     }
                     .fontWeight(.semibold)
-                    .disabled(selectedImages.isEmpty)
+                    .disabled(selectedCount == 0)
                 }
             }
         }
