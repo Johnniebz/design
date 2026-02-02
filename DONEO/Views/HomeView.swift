@@ -27,7 +27,7 @@ struct HomeView: View {
             }
         }
         .navigationDestination(for: Project.self) { project in
-            ProjectDetailView(project: project)
+            ProjectChatView(project: project)
         }
         .sheet(isPresented: $showingNewProjectSheet) {
             NewProjectFlowView { projectName, description, selectedContacts, pendingInvites in

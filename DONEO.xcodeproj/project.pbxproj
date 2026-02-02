@@ -17,17 +17,13 @@
 		E81000012B5A00000000007 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000007 /* HomeViewModel.swift */; };
 		E81000012B5A00000000008 /* MockDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000008 /* MockDataService.swift */; };
 		E81000012B5A00000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000009 /* Assets.xcassets */; };
-		E81000012B5A0000000000A /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000000A /* ProjectDetailView.swift */; };
-		E81000012B5A0000000000B /* ProjectDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000000B /* ProjectDetailViewModel.swift */; };
 		E81000012B5A0000000000C /* TaskCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000000C /* TaskCardView.swift */; };
-		E81000012B5A0000000000D /* TaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000000D /* TaskListView.swift */; };
 		E81000012B5A0000000000E /* GroupChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000000E /* GroupChatView.swift */; };
 		E81000012B5A0000000000F /* Message.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000000F /* Message.swift */; };
 		E81000012B5A00000000010 /* TaskDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000010 /* TaskDetailViewModel.swift */; };
 		E81000012B5A00000000011 /* GroupChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000011 /* GroupChatViewModel.swift */; };
 		E81000012B5A00000000012 /* SubtaskListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000012 /* SubtaskListView.swift */; };
 		E81000012B5A00000000013 /* TaskChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000013 /* TaskChatView.swift */; };
-		E81000012B5A00000000014 /* TaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000014 /* TaskDetailView.swift */; };
 		E81000012B5A00000000015 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000015 /* AuthManager.swift */; };
 		E81000012B5A00000000016 /* OnboardingContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000016 /* OnboardingContainerView.swift */; };
 		E81000012B5A00000000017 /* PhoneEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000017 /* PhoneEntryView.swift */; };
@@ -36,6 +32,10 @@
 		E81000012B5A0000000001A /* FirstProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000001A /* FirstProjectView.swift */; };
 		E81000012B5A0000000001B /* DueDatePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000001B /* DueDatePicker.swift */; };
 		E81000012B5A0000000001C /* AssigneePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000001C /* AssigneePicker.swift */; };
+		E81000012B5A0000000001E /* ProjectChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000001E /* ProjectChatView.swift */; };
+		E81000012B5A0000000001F /* TaskDrawerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000001F /* TaskDrawerSheet.swift */; };
+		E81000012B5A00000000020 /* TaskDrawerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000020 /* TaskDrawerDetailView.swift */; };
+		E81000012B5A00000000021 /* ProjectChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000021 /* ProjectChatViewModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,17 +49,13 @@
 		E81000002B5A00000000007 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000008 /* MockDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDataService.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		E81000002B5A0000000000A /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailView.swift; sourceTree = "<group>"; };
-		E81000002B5A0000000000B /* ProjectDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDetailViewModel.swift; sourceTree = "<group>"; };
 		E81000002B5A0000000000C /* TaskCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCardView.swift; sourceTree = "<group>"; };
-		E81000002B5A0000000000D /* TaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskListView.swift; sourceTree = "<group>"; };
 		E81000002B5A0000000000E /* GroupChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupChatView.swift; sourceTree = "<group>"; };
 		E81000002B5A0000000000F /* Message.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Message.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000010 /* TaskDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailViewModel.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000011 /* GroupChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupChatViewModel.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000012 /* SubtaskListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtaskListView.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000013 /* TaskChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskChatView.swift; sourceTree = "<group>"; };
-		E81000002B5A00000000014 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000015 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000016 /* OnboardingContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingContainerView.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000017 /* PhoneEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneEntryView.swift; sourceTree = "<group>"; };
@@ -69,6 +65,10 @@
 		E81000002B5A0000000001B /* DueDatePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DueDatePicker.swift; sourceTree = "<group>"; };
 		E81000002B5A0000000001C /* AssigneePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssigneePicker.swift; sourceTree = "<group>"; };
 		E81000002B5A0000000001D /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		E81000002B5A0000000001E /* ProjectChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectChatView.swift; sourceTree = "<group>"; };
+		E81000002B5A0000000001F /* TaskDrawerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerSheet.swift; sourceTree = "<group>"; };
+		E81000002B5A00000000020 /* TaskDrawerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerDetailView.swift; sourceTree = "<group>"; };
+		E81000002B5A00000000021 /* ProjectChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectChatViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,13 +120,13 @@
 			children = (
 				E81000002B5A00000000002 /* HomeView.swift */,
 				E81000002B5A00000000003 /* ProjectCardView.swift */,
-				E81000002B5A0000000000A /* ProjectDetailView.swift */,
+				E81000002B5A0000000001E /* ProjectChatView.swift */,
+				E81000002B5A0000000001F /* TaskDrawerSheet.swift */,
+				E81000002B5A00000000020 /* TaskDrawerDetailView.swift */,
 				E81000002B5A0000000000C /* TaskCardView.swift */,
-				E81000002B5A0000000000D /* TaskListView.swift */,
 				E81000002B5A0000000000E /* GroupChatView.swift */,
 				E81000002B5A00000000012 /* SubtaskListView.swift */,
 				E81000002B5A00000000013 /* TaskChatView.swift */,
-				E81000002B5A00000000014 /* TaskDetailView.swift */,
 				E83000002B5A00000000008 /* Onboarding */,
 				E83000002B5A00000000009 /* Components */,
 			);
@@ -158,7 +158,7 @@
 			isa = PBXGroup;
 			children = (
 				E81000002B5A00000000007 /* HomeViewModel.swift */,
-				E81000002B5A0000000000B /* ProjectDetailViewModel.swift */,
+				E81000002B5A00000000021 /* ProjectChatViewModel.swift */,
 				E81000002B5A00000000010 /* TaskDetailViewModel.swift */,
 				E81000002B5A00000000011 /* GroupChatViewModel.swift */,
 			);
@@ -268,17 +268,17 @@
 				E81000012B5A00000000006 /* User.swift in Sources */,
 				E81000012B5A00000000007 /* HomeViewModel.swift in Sources */,
 				E81000012B5A00000000008 /* MockDataService.swift in Sources */,
-				E81000012B5A0000000000A /* ProjectDetailView.swift in Sources */,
-				E81000012B5A0000000000B /* ProjectDetailViewModel.swift in Sources */,
+				E81000012B5A0000000001E /* ProjectChatView.swift in Sources */,
+				E81000012B5A0000000001F /* TaskDrawerSheet.swift in Sources */,
+				E81000012B5A00000000020 /* TaskDrawerDetailView.swift in Sources */,
+				E81000012B5A00000000021 /* ProjectChatViewModel.swift in Sources */,
 				E81000012B5A0000000000C /* TaskCardView.swift in Sources */,
-				E81000012B5A0000000000D /* TaskListView.swift in Sources */,
 				E81000012B5A0000000000E /* GroupChatView.swift in Sources */,
 				E81000012B5A0000000000F /* Message.swift in Sources */,
 				E81000012B5A00000000010 /* TaskDetailViewModel.swift in Sources */,
 				E81000012B5A00000000011 /* GroupChatViewModel.swift in Sources */,
 				E81000012B5A00000000012 /* SubtaskListView.swift in Sources */,
 				E81000012B5A00000000013 /* TaskChatView.swift in Sources */,
-				E81000012B5A00000000014 /* TaskDetailView.swift in Sources */,
 				E81000012B5A00000000015 /* AuthManager.swift in Sources */,
 				E81000012B5A00000000016 /* OnboardingContainerView.swift in Sources */,
 				E81000012B5A00000000017 /* PhoneEntryView.swift in Sources */,

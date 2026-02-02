@@ -7,6 +7,7 @@ struct Project: Identifiable, Hashable {
     var description: String?
     var members: [User]
     var tasks: [DONEOTask]
+    var messages: [Message]  // Project-level chat messages
     var unreadTaskIds: [UUID: Set<UUID>]  // Maps user ID to set of unread task IDs
     var lastActivity: Date?
     var lastActivityPreview: String?
@@ -17,6 +18,7 @@ struct Project: Identifiable, Hashable {
         description: String? = nil,
         members: [User] = [],
         tasks: [DONEOTask] = [],
+        messages: [Message] = [],
         unreadTaskIds: [UUID: Set<UUID>] = [:],
         lastActivity: Date? = nil,
         lastActivityPreview: String? = nil
@@ -26,9 +28,15 @@ struct Project: Identifiable, Hashable {
         self.description = description
         self.members = members
         self.tasks = tasks
+        self.messages = messages
         self.unreadTaskIds = unreadTaskIds
         self.lastActivity = lastActivity
         self.lastActivityPreview = lastActivityPreview
+    }
+
+    // Last message for preview in HomeView
+    var lastMessage: Message? {
+        messages.sorted { $0.timestamp > $1.timestamp }.first
     }
 
     // Get unread count for current user
