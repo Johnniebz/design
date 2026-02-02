@@ -7,6 +7,7 @@ final class ProjectChatViewModel {
     var newMessageText: String = ""
     var referencedTask: TaskReference? = nil
     var referencedSubtask: SubtaskReference? = nil
+    var quotedMessage: QuotedMessage? = nil
     var isMuted: Bool = false
 
     // Task drawer state
@@ -44,7 +45,8 @@ final class ProjectChatViewModel {
             sender: currentUser,
             isFromCurrentUser: true,
             referencedTask: referencedTask,
-            referencedSubtask: referencedSubtask
+            referencedSubtask: referencedSubtask,
+            quotedMessage: quotedMessage
         )
         project.messages.append(message)
 
@@ -58,15 +60,17 @@ final class ProjectChatViewModel {
         newMessageText = ""
         referencedTask = nil
         referencedSubtask = nil
+        quotedMessage = nil
     }
 
-    func sendMessage(content: String, referencedTask: TaskReference? = nil, referencedSubtask: SubtaskReference? = nil) {
+    func sendMessage(content: String, referencedTask: TaskReference? = nil, referencedSubtask: SubtaskReference? = nil, quotedMessage: QuotedMessage? = nil) {
         let message = Message(
             content: content,
             sender: currentUser,
             isFromCurrentUser: true,
             referencedTask: referencedTask,
-            referencedSubtask: referencedSubtask
+            referencedSubtask: referencedSubtask,
+            quotedMessage: quotedMessage
         )
         project.messages.append(message)
 
@@ -91,14 +95,16 @@ final class ProjectChatViewModel {
         project.tasks.filter { $0.status == .done }
     }
 
-    func addTask(title: String, assignees: [User] = [], subtasks: [Subtask] = []) {
+    func addTask(title: String, assignees: [User] = [], subtasks: [Subtask] = [], dueDate: Date? = nil, notes: String? = nil) {
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
 
         let task = DONEOTask(
             title: title,
             assignees: assignees,
             status: .pending,
+            dueDate: dueDate,
             subtasks: subtasks,
+            notes: notes,
             createdBy: currentUser
         )
         project.tasks.append(task)
@@ -291,6 +297,22 @@ final class ProjectChatViewModel {
     func clearReferences() {
         referencedTask = nil
         referencedSubtask = nil
+    }
+
+    // MARK: - Message Quoting
+
+    func quoteMessage(_ message: Message) {
+        quotedMessage = QuotedMessage(message: message)
+    }
+
+    func clearQuote() {
+        quotedMessage = nil
+    }
+
+    func clearAllReferences() {
+        referencedTask = nil
+        referencedSubtask = nil
+        quotedMessage = nil
     }
 
     // MARK: - Permissions

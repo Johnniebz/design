@@ -269,43 +269,53 @@ struct TaskDrawerRow: View {
 struct AddTaskSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: ProjectChatViewModel
+
+    // Task fields
     @State private var taskTitle = ""
     @State private var selectedAssigneeIds: Set<UUID> = []
-    @FocusState private var isTitleFocused: Bool
+    @State private var dueDate: Date? = nil
+    @State private var showingDatePicker = false
+    @State private var notes = ""
+    @State private var subtasks: [NewSubtask] = []
+    @State private var newSubtaskTitle = ""
+    @FocusState private var focusedField: Field?
+
+    enum Field: Hashable {
+        case title, notes, subtask
+    }
+
+    // Helper struct for subtasks being created
+    struct NewSubtask: Identifiable {
+        let id = UUID()
+        var title: String
+        var description: String = ""
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // Title input
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Task Title")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Task title
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Task")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
 
-                    TextField("What needs to be done?", text: $taskTitle)
-                        .font(.system(size: 17))
-                        .padding(14)
-                        .background(Color(uiColor: .secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .focused($isTitleFocused)
-                }
+                        TextField("What needs to be done?", text: $taskTitle)
+                            .font(.system(size: 17))
+                            .padding(14)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .focused($focusedField, equals: .title)
+                    }
 
-                // Assignee picker
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
+                    // Assignees as chips
+                    VStack(alignment: .leading, spacing: 10) {
                         Text("Assign to")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.secondary)
 
-                        if !selectedAssigneeIds.isEmpty {
-                            Text("\(selectedAssigneeIds.count) selected")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Theme.primary)
-                        }
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        FlowLayout(spacing: 8) {
                             ForEach(viewModel.project.members) { member in
                                 let isSelected = selectedAssigneeIds.contains(member.id)
                                 Button {
@@ -315,42 +325,182 @@ struct AddTaskSheet: View {
                                         selectedAssigneeIds.insert(member.id)
                                     }
                                 } label: {
-                                    VStack(spacing: 4) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(isSelected ? Theme.primary : Color(uiColor: .tertiarySystemBackground))
-                                                .frame(width: 48, height: 48)
-                                            Text(member.avatarInitials)
-                                                .font(.system(size: 16, weight: .medium))
-                                                .foregroundStyle(isSelected ? .white : .primary)
-
-                                            if isSelected {
-                                                Circle()
-                                                    .fill(Color.green)
-                                                    .frame(width: 18, height: 18)
-                                                    .overlay {
-                                                        Image(systemName: "checkmark")
-                                                            .font(.system(size: 10, weight: .bold))
-                                                            .foregroundStyle(.white)
-                                                    }
-                                                    .offset(x: 16, y: 16)
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(isSelected ? Color.white.opacity(0.3) : Theme.primaryLight)
+                                            .frame(width: 28, height: 28)
+                                            .overlay {
+                                                Text(member.avatarInitials)
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundStyle(isSelected ? .white : Theme.primary)
                                             }
-                                        }
-                                        Text(member.displayFirstName)
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(isSelected ? Theme.primary : .secondary)
+                                        Text(member.id == viewModel.currentUser.id ? "Me" : member.displayFirstName)
+                                            .font(.system(size: 14, weight: .medium))
                                     }
-                                    .frame(width: 64)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(isSelected ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                    .foregroundStyle(isSelected ? .white : .primary)
+                                    .clipShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
                     }
-                }
 
-                Spacer()
+                    // Due date
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            showingDatePicker.toggle()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Theme.primary)
+
+                                if let date = dueDate {
+                                    Text(formatDueDate(date))
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(.primary)
+
+                                    Button {
+                                        dueDate = nil
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Set due date")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        if showingDatePicker {
+                            DatePicker(
+                                "Due date",
+                                selection: Binding(
+                                    get: { dueDate ?? Date() },
+                                    set: { dueDate = $0 }
+                                ),
+                                displayedComponents: .date
+                            )
+                            .datePickerStyle(.graphical)
+                            .tint(Theme.primary)
+                        }
+                    }
+
+                    // Notes
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        TextField("Add details, instructions, or context...", text: $notes, axis: .vertical)
+                            .font(.system(size: 15))
+                            .lineLimit(4...8)
+                            .padding(14)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .focused($focusedField, equals: .notes)
+                    }
+
+                    // Subtasks
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Subtasks")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        // Existing subtasks
+                        ForEach(subtasks) { subtask in
+                            HStack(spacing: 10) {
+                                Image(systemName: "circle")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.secondary)
+
+                                Text(subtask.title)
+                                    .font(.system(size: 15))
+
+                                Spacer()
+
+                                Button {
+                                    subtasks.removeAll { $0.id == subtask.id }
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .padding(12)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+
+                        // Add subtask input
+                        HStack(spacing: 10) {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Theme.primary)
+
+                            TextField("Add subtask", text: $newSubtaskTitle)
+                                .font(.system(size: 15))
+                                .focused($focusedField, equals: .subtask)
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    addSubtask()
+                                }
+                        }
+                        .padding(12)
+                        .background(Color(uiColor: .secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+
+                    // Attachments placeholder
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Attachments")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            Button {
+                                // TODO: Add attachment
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 14))
+                                    Text("Add")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                                .foregroundStyle(Theme.primary)
+                            }
+                        }
+
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                            .frame(height: 100)
+                            .overlay {
+                                VStack(spacing: 8) {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.system(size: 28))
+                                        .foregroundStyle(.tertiary)
+                                    Text("Photos, documents, and files")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                    }
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("New Task")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -361,18 +511,91 @@ struct AddTaskSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Create") {
-                        let assignees = viewModel.project.members.filter { selectedAssigneeIds.contains($0.id) }
-                        viewModel.addTask(title: taskTitle, assignees: assignees)
-                        dismiss()
+                        createTask()
                     }
                     .fontWeight(.semibold)
                     .disabled(taskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear {
-                isTitleFocused = true
+                focusedField = .title
             }
         }
+    }
+
+    private func addSubtask() {
+        let title = newSubtaskTitle.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        subtasks.append(NewSubtask(title: title))
+        newSubtaskTitle = ""
+    }
+
+    private func createTask() {
+        let assignees = viewModel.project.members.filter { selectedAssigneeIds.contains($0.id) }
+        let subtaskList = subtasks.map { Subtask(title: $0.title, description: $0.description.isEmpty ? nil : $0.description, createdBy: viewModel.currentUser) }
+        let notesText = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        viewModel.addTask(
+            title: taskTitle,
+            assignees: assignees,
+            subtasks: subtaskList,
+            dueDate: dueDate,
+            notes: notesText.isEmpty ? nil : notesText
+        )
+        dismiss()
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Flow Layout for chips
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrangeSubviews(proposal: proposal, subviews: subviews)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrangeSubviews(proposal: proposal, subviews: subviews)
+        for (index, frame) in result.frames.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: .init(frame.size))
+        }
+    }
+
+    private func arrangeSubviews(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
+        let maxWidth = proposal.width ?? .infinity
+        var frames: [CGRect] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+
+            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+        }
+
+        return (CGSize(width: maxWidth, height: y + rowHeight), frames)
     }
 }
 

@@ -16,6 +16,7 @@ struct Message: Identifiable, Hashable {
     var isFromCurrentUser: Bool
     var referencedTask: TaskReference?
     var referencedSubtask: SubtaskReference?
+    var quotedMessage: QuotedMessage?
     var attachment: MessageAttachment?
     var messageType: MessageType
 
@@ -27,6 +28,7 @@ struct Message: Identifiable, Hashable {
         isFromCurrentUser: Bool = false,
         referencedTask: TaskReference? = nil,
         referencedSubtask: SubtaskReference? = nil,
+        quotedMessage: QuotedMessage? = nil,
         attachment: MessageAttachment? = nil,
         messageType: MessageType = .regular
     ) {
@@ -37,8 +39,29 @@ struct Message: Identifiable, Hashable {
         self.isFromCurrentUser = isFromCurrentUser
         self.referencedTask = referencedTask
         self.referencedSubtask = referencedSubtask
+        self.quotedMessage = quotedMessage
         self.attachment = attachment
         self.messageType = messageType
+    }
+}
+
+// MARK: - Quoted Message (for replying to messages)
+
+struct QuotedMessage: Hashable {
+    let messageId: UUID
+    let senderName: String
+    let content: String
+
+    init(message: Message) {
+        self.messageId = message.id
+        self.senderName = message.sender.displayFirstName
+        self.content = message.content
+    }
+
+    init(messageId: UUID, senderName: String, content: String) {
+        self.messageId = messageId
+        self.senderName = senderName
+        self.content = content
     }
 }
 

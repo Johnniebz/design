@@ -17,8 +17,8 @@ struct ProjectChatView: View {
             // Chat messages area
             chatMessagesArea
 
-            // Referenced task/subtask preview
-            if viewModel.referencedTask != nil || viewModel.referencedSubtask != nil {
+            // Referenced task/subtask/quote preview
+            if viewModel.referencedTask != nil || viewModel.referencedSubtask != nil || viewModel.quotedMessage != nil {
                 referencePreview
             }
 
@@ -110,6 +110,10 @@ struct ProjectChatView: View {
                                 onSubtaskTap: { subtaskRef in
                                     viewModel.referencedSubtask = subtaskRef
                                     isInputFocused = true
+                                },
+                                onQuote: {
+                                    viewModel.quoteMessage(message)
+                                    isInputFocused = true
                                 }
                             )
                             .id(message.id)
@@ -173,7 +177,15 @@ struct ProjectChatView: View {
                 .frame(width: 3)
 
             VStack(alignment: .leading, spacing: 2) {
-                if let subtaskRef = viewModel.referencedSubtask {
+                if let quoted = viewModel.quotedMessage {
+                    Text("Replying to \(quoted.senderName)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(quoted.content)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                } else if let subtaskRef = viewModel.referencedSubtask {
                     Text("Referencing subtask")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
@@ -195,7 +207,7 @@ struct ProjectChatView: View {
             Spacer()
 
             Button {
-                viewModel.clearReferences()
+                viewModel.clearAllReferences()
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 18))
@@ -273,6 +285,9 @@ struct ProjectMessageBubble: View {
     let message: Message
     var onTaskTap: ((TaskReference) -> Void)? = nil
     var onSubtaskTap: ((SubtaskReference) -> Void)? = nil
+    var onQuote: (() -> Void)? = nil
+
+    @State private var dragOffset: CGFloat = 0
 
     var body: some View {
         switch message.messageType {
@@ -323,6 +338,14 @@ struct ProjectMessageBubble: View {
 
     private var regularMessage: some View {
         HStack {
+            // Reply indicator (appears on swipe)
+            if dragOffset > 30 {
+                Image(systemName: "arrowshape.turn.up.left.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.primary)
+                    .opacity(min(1.0, Double(dragOffset - 30) / 30.0))
+            }
+
             if message.isFromCurrentUser {
                 Spacer(minLength: 60)
             }
@@ -335,6 +358,32 @@ struct ProjectMessageBubble: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
+                    // Quoted message
+                    if let quoted = message.quotedMessage {
+                        HStack(spacing: 6) {
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(message.isFromCurrentUser ? Color.white.opacity(0.5) : Theme.primary.opacity(0.5))
+                                .frame(width: 3)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(quoted.senderName)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.9) : Theme.primary)
+                                Text(quoted.content)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(8)
+                        .background(
+                            message.isFromCurrentUser
+                                ? Color.white.opacity(0.15)
+                                : Color(uiColor: .systemGray4)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+
                     // Task reference badge
                     if let taskRef = message.referencedTask {
                         Button {
@@ -403,6 +452,23 @@ struct ProjectMessageBubble: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
+            .offset(x: dragOffset)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if value.translation.width > 0 {
+                            dragOffset = min(80, value.translation.width)
+                        }
+                    }
+                    .onEnded { value in
+                        if dragOffset > 50 {
+                            onQuote?()
+                        }
+                        withAnimation(.spring(response: 0.3)) {
+                            dragOffset = 0
+                        }
+                    }
+            )
 
             if !message.isFromCurrentUser {
                 Spacer(minLength: 60)
