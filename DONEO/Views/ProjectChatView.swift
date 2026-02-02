@@ -30,13 +30,6 @@ struct ProjectChatView: View {
             ToolbarItem(placement: .principal) {
                 headerView
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingProjectInfo = true
-                } label: {
-                    Image(systemName: "info.circle")
-                }
-            }
         }
         .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showingTaskDrawer) {
@@ -54,38 +47,19 @@ struct ProjectChatView: View {
         }
     }
 
-    // MARK: - Header View (Project name + member avatars)
+    // MARK: - Header View (Project name + member count)
 
     private var headerView: some View {
-        Button {
-            showingProjectInfo = true
-        } label: {
-            HStack(spacing: 8) {
-                // Project avatar
-                ZStack {
-                    Circle()
-                        .fill(Theme.primaryLight)
-                        .frame(width: 32, height: 32)
-                    Text(viewModel.project.initials)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Theme.primary)
-                }
+        VStack(spacing: 1) {
+            Text(viewModel.project.name)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
 
-                // Project name
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(viewModel.project.name)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
-                    // Members count
-                    Text("\(viewModel.project.members.count) members")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-            }
+            Text("\(viewModel.project.members.count) members")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Chat Messages Area
@@ -617,53 +591,285 @@ struct ProjectInfoView: View {
     }
 }
 
-// MARK: - Project Attachment Sheet (Placeholder)
+// MARK: - Project Attachment Sheet
 
 struct ProjectAttachmentSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedTab: AttachmentTab = .photos
+    @State private var selectedPhotos: Set<Int> = []
+
+    enum AttachmentTab: String, CaseIterable {
+        case photos = "Photos"
+        case files = "Files"
+        case contact = "Contact"
+
+        var icon: String {
+            switch self {
+            case .photos: return "photo.fill"
+            case .files: return "doc.fill"
+            case .contact: return "person.crop.square.fill"
+            }
+        }
+    }
 
     var body: some View {
-        VStack(spacing: 24) {
-            HStack {
+        VStack(spacing: 0) {
+            // Header
+            header
+
+            // Content based on selected tab
+            tabContent
+
+            // Tab bar
+            tabBar
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.primary)
+                    .padding(8)
+                    .background(Theme.primaryLight)
+                    .clipShape(Circle())
+            }
+
+            Spacer()
+
+            Text(headerTitle)
+                .font(.system(size: 16, weight: .semibold))
+
+            Spacer()
+
+            // Send button (only show when photos selected)
+            if !selectedPhotos.isEmpty {
                 Button {
+                    // Send selected photos
                     dismiss()
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.primary)
-                        .padding(8)
-                        .background(Color(uiColor: .secondarySystemBackground))
-                        .clipShape(Circle())
+                    Text("Send (\(selectedPhotos.count))")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Theme.primary)
+                        .clipShape(Capsule())
                 }
-
-                Spacer()
-
-                Text("Attachments")
-                    .font(.system(size: 16, weight: .semibold))
-
-                Spacer()
-
+            } else {
                 Color.clear.frame(width: 32, height: 32)
             }
-            .padding(.horizontal)
-            .padding(.top, 12)
+        }
+        .padding(.horizontal)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
 
+    private var headerTitle: String {
+        switch selectedTab {
+        case .photos: return "Recents"
+        case .files: return "Files"
+        case .contact: return "Contacts"
+        }
+    }
+
+    // MARK: - Tab Content
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .photos:
+            photosContent
+        case .files:
+            filesContent
+        case .contact:
+            contactContent
+        }
+    }
+
+    // MARK: - Photos Content
+
+    private var photosContent: some View {
+        ScrollView {
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 2),
+                GridItem(.flexible(), spacing: 2),
+                GridItem(.flexible(), spacing: 2)
+            ], spacing: 2) {
+                // Camera button
+                Button {
+                    // Open camera
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 32))
+                            .foregroundStyle(Theme.primary)
+                        Text("Camera")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 120)
+                    .background(Color(uiColor: .systemBackground))
+                }
+
+                // Sample photos (placeholders with colors)
+                ForEach(0..<11, id: \.self) { index in
+                    photoCell(index: index)
+                }
+            }
+        }
+    }
+
+    private func photoCell(index: Int) -> some View {
+        let colors: [Color] = [
+            Color(red: 0.85, green: 0.65, blue: 0.65),
+            Color(red: 0.85, green: 0.78, blue: 0.65),
+            Color(red: 0.85, green: 0.85, blue: 0.65),
+            Color(red: 0.65, green: 0.85, blue: 0.65),
+            Color(red: 0.65, green: 0.85, blue: 0.78),
+            Color(red: 0.65, green: 0.78, blue: 0.85),
+            Color(red: 0.78, green: 0.65, blue: 0.85)
+        ]
+        let color = colors[index % colors.count]
+        let isSelected = selectedPhotos.contains(index)
+
+        return Button {
+            if isSelected {
+                selectedPhotos.remove(index)
+            } else {
+                selectedPhotos.insert(index)
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Rectangle()
+                    .fill(color)
+                    .frame(height: 120)
+
+                // Selection circle
+                Circle()
+                    .stroke(Color.white, lineWidth: 2)
+                    .frame(width: 24, height: 24)
+                    .background(
+                        Circle()
+                            .fill(isSelected ? Theme.primary : Color.clear)
+                    )
+                    .overlay {
+                        if isSelected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .padding(8)
+            }
+        }
+    }
+
+    // MARK: - Files Content
+
+    private var filesContent: some View {
+        VStack(spacing: 16) {
             Spacer()
 
-            VStack(spacing: 12) {
-                Image(systemName: "photo.on.rectangle.angled")
+            VStack(spacing: 16) {
+                Image(systemName: "doc.badge.plus")
                     .font(.system(size: 48))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.primary.opacity(0.6))
 
-                Text("Attachment sharing")
-                    .font(.system(size: 16, weight: .medium))
+                Text("Browse Files")
+                    .font(.system(size: 18, weight: .semibold))
 
-                Text("Coming soon")
+                Text("Select documents, PDFs, or other files")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    // Open file picker
+                } label: {
+                    Text("Choose File")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Theme.primary)
+                        .clipShape(Capsule())
+                }
+                .padding(.top, 8)
             }
 
             Spacer()
+        }
+        .padding()
+    }
+
+    // MARK: - Contact Content
+
+    private var contactContent: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            VStack(spacing: 16) {
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .font(.system(size: 48))
+                    .foregroundStyle(Theme.primary.opacity(0.6))
+
+                Text("Share Contact")
+                    .font(.system(size: 18, weight: .semibold))
+
+                Text("Share a contact card with your team")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    // Open contact picker
+                } label: {
+                    Text("Choose Contact")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Theme.primary)
+                        .clipShape(Capsule())
+                }
+                .padding(.top, 8)
+            }
+
+            Spacer()
+        }
+        .padding()
+    }
+
+    // MARK: - Tab Bar
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(AttachmentTab.allCases, id: \.self) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 22))
+                        Text(tab.rawValue)
+                            .font(.system(size: 11))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(selectedTab == tab ? Theme.primary : .secondary)
+                }
+            }
+        }
+        .padding(.vertical, 12)
+        .background(Color(uiColor: .systemBackground))
+        .overlay(alignment: .top) {
+            Divider()
         }
     }
 }
