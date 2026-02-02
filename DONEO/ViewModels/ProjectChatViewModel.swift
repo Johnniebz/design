@@ -160,6 +160,22 @@ final class ProjectChatViewModel {
         MockDataService.shared.updateProject(project)
     }
 
+    func updateTask(_ task: DONEOTask, title: String, assigneeIds: Set<UUID>, dueDate: Date?, notes: String?) {
+        guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }) else { return }
+
+        project.tasks[taskIndex].title = title
+        project.tasks[taskIndex].assignees = project.members.filter { assigneeIds.contains($0.id) }
+        project.tasks[taskIndex].dueDate = dueDate
+        project.tasks[taskIndex].notes = notes
+
+        // Update selectedTask if viewing this task
+        if selectedTask?.id == task.id {
+            selectedTask = project.tasks[taskIndex]
+        }
+
+        MockDataService.shared.updateProject(project)
+    }
+
     // MARK: - Subtask Management
 
     func toggleSubtaskStatus(_ task: DONEOTask, _ subtask: Subtask) {
@@ -200,7 +216,7 @@ final class ProjectChatViewModel {
         MockDataService.shared.updateProject(project)
     }
 
-    func addSubtask(to task: DONEOTask, title: String, description: String? = nil, assignees: [User] = []) {
+    func addSubtask(to task: DONEOTask, title: String, description: String? = nil, assignees: [User] = [], dueDate: Date? = nil) {
         guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }),
               !title.trimmingCharacters(in: .whitespaces).isEmpty else {
             return
@@ -210,6 +226,7 @@ final class ProjectChatViewModel {
             title: title,
             description: description,
             assignees: assignees,
+            dueDate: dueDate,
             createdBy: currentUser
         )
         project.tasks[taskIndex].subtasks.append(subtask)
@@ -255,6 +272,20 @@ final class ProjectChatViewModel {
             return
         }
         project.tasks[taskIndex].subtasks[subtaskIndex].description = description
+
+        if selectedTask?.id == task.id {
+            selectedTask = project.tasks[taskIndex]
+        }
+
+        MockDataService.shared.updateProject(project)
+    }
+
+    func updateSubtaskDueDate(in task: DONEOTask, subtask: Subtask, dueDate: Date?) {
+        guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }),
+              let subtaskIndex = project.tasks[taskIndex].subtasks.firstIndex(where: { $0.id == subtask.id }) else {
+            return
+        }
+        project.tasks[taskIndex].subtasks[subtaskIndex].dueDate = dueDate
 
         if selectedTask?.id == task.id {
             selectedTask = project.tasks[taskIndex]

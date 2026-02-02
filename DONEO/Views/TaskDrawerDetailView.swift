@@ -5,8 +5,7 @@ struct TaskDrawerDetailView: View {
     @Bindable var viewModel: ProjectChatViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddSubtask = false
-    @State private var newSubtaskTitle = ""
-    @FocusState private var isSubtaskFieldFocused: Bool
+    @State private var showingTaskDetails = false
 
     // Get the current task from viewModel to ensure we have latest data
     private var currentTask: DONEOTask {
@@ -16,7 +15,7 @@ struct TaskDrawerDetailView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Task header with checkbox
+                // Task header (tappable to see details)
                 taskHeader
 
                 // Subtasks list
@@ -43,15 +42,9 @@ struct TaskDrawerDetailView: View {
                         }
                     }
                 }
-
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        viewModel.quoteTask(currentTask)
-                        dismiss()
-                    } label: {
-                        Label("Quote", systemImage: "quote.bubble")
-                    }
-                }
+            }
+            .sheet(isPresented: $showingTaskDetails) {
+                TaskInfoSheet(task: currentTask, viewModel: viewModel)
             }
         }
     }
@@ -59,42 +52,109 @@ struct TaskDrawerDetailView: View {
     // MARK: - Task Header
 
     private var taskHeader: some View {
-        HStack(spacing: 12) {
-            // Task checkbox
-            Button {
-                viewModel.toggleTaskStatus(currentTask)
-            } label: {
-                Image(systemName: currentTask.status == .done ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 28))
-                    .foregroundStyle(currentTask.status == .done ? .green : .secondary)
-            }
-            .buttonStyle(.plain)
+        Button {
+            showingTaskDetails = true
+        } label: {
+            HStack(spacing: 12) {
+                // Task info
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(currentTask.title)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
 
-            // Task title
-            VStack(alignment: .leading, spacing: 4) {
-                Text(currentTask.title)
-                    .font(.system(size: 18, weight: .semibold))
-                    .strikethrough(currentTask.status == .done)
-                    .foregroundStyle(currentTask.status == .done ? .secondary : .primary)
+                    // Info row
+                    HStack(spacing: 12) {
+                        // Subtask progress
+                        if !currentTask.subtasks.isEmpty {
+                            let completed = currentTask.subtasks.filter { $0.isDone }.count
+                            let total = currentTask.subtasks.count
+                            HStack(spacing: 4) {
+                                Image(systemName: "checklist")
+                                    .font(.system(size: 11))
+                                Text("\(completed)/\(total)")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(completed == total ? .green : .secondary)
+                        }
 
-                // Subtask progress
-                if !currentTask.subtasks.isEmpty {
-                    let completed = currentTask.subtasks.filter { $0.isDone }.count
-                    let total = currentTask.subtasks.count
-                    HStack(spacing: 4) {
-                        Image(systemName: "checklist")
-                            .font(.system(size: 12))
-                        Text("\(completed) of \(total) subtasks completed")
-                            .font(.system(size: 13))
+                        // Due date
+                        if let dueDate = currentTask.dueDate {
+                            HStack(spacing: 4) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 11))
+                                Text(formatDueDate(dueDate))
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(currentTask.isOverdue ? .red : .secondary)
+                        }
+
+                        // Has notes indicator
+                        if currentTask.notes != nil {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.text")
+                                    .font(.system(size: 11))
+                                Text("Notes")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(.secondary)
+                        }
                     }
-                    .foregroundStyle(completed == total ? .green : .secondary)
-                }
-            }
 
-            Spacer()
+                    // Assignees
+                    if !currentTask.assignees.isEmpty {
+                        HStack(spacing: 4) {
+                            HStack(spacing: -4) {
+                                ForEach(currentTask.assignees.prefix(3)) { assignee in
+                                    Circle()
+                                        .fill(Theme.primaryLight)
+                                        .frame(width: 20, height: 20)
+                                        .overlay {
+                                            Text(assignee.avatarInitials)
+                                                .font(.system(size: 8, weight: .medium))
+                                                .foregroundStyle(Theme.primary)
+                                        }
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color(uiColor: .secondarySystemBackground), lineWidth: 1)
+                                        )
+                                }
+                            }
+                            let names = currentTask.assignees.prefix(2).map { $0.displayFirstName }
+                            let displayText = currentTask.assignees.count > 2
+                                ? "\(names.joined(separator: ", ")) +\(currentTask.assignees.count - 2)"
+                                : names.joined(separator: ", ")
+                            Text(displayText)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Chevron to indicate tappable
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding()
+            .background(Color(uiColor: .secondarySystemBackground))
         }
-        .padding()
-        .background(Color(uiColor: .secondarySystemBackground))
+        .buttonStyle(.plain)
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
     }
 
     // MARK: - Empty Subtasks View
@@ -151,38 +211,28 @@ struct TaskDrawerDetailView: View {
         VStack(spacing: 0) {
             Divider()
 
-            HStack(spacing: 12) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Theme.primary)
+            Button {
+                showingAddSubtask = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Theme.primary)
 
-                TextField("Add a subtask...", text: $newSubtaskTitle)
-                    .font(.system(size: 16))
-                    .focused($isSubtaskFieldFocused)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        addSubtask()
-                    }
+                    Text("Add a subtask...")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
 
-                if !newSubtaskTitle.isEmpty {
-                    Button {
-                        addSubtask()
-                    } label: {
-                        Text("Add")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Theme.primary)
-                    }
+                    Spacer()
                 }
+                .padding()
+                .background(Color(uiColor: .systemBackground))
             }
-            .padding()
-            .background(Color(uiColor: .systemBackground))
+            .buttonStyle(.plain)
         }
-    }
-
-    private func addSubtask() {
-        guard !newSubtaskTitle.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        viewModel.addSubtask(to: currentTask, title: newSubtaskTitle)
-        newSubtaskTitle = ""
+        .sheet(isPresented: $showingAddSubtask) {
+            AddSubtaskSheet(task: currentTask, viewModel: viewModel)
+        }
     }
 }
 
@@ -309,9 +359,19 @@ struct DrawerSubtaskDetailSheet: View {
     @State private var editedTitle: String = ""
     @State private var editedDescription: String = ""
     @State private var selectedAssigneeIds: Set<UUID> = []
+    @State private var dueDate: Date? = nil
+    @State private var showingDatePicker = false
 
     private var canEdit: Bool {
         viewModel.canEditSubtask(subtask)
+    }
+
+    // Assignees limited to task assignees (or all members if no one assigned to task)
+    private var availableAssignees: [User] {
+        if task.assignees.isEmpty {
+            return viewModel.project.members
+        }
+        return task.assignees
     }
 
     var body: some View {
@@ -340,14 +400,14 @@ struct DrawerSubtaskDetailSheet: View {
                         }
                     }
 
-                    // Description section
+                    // Notes & Instructions section
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Instructions")
+                        Text("Notes & Instructions")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.secondary)
 
                         if canEdit {
-                            TextField("Add instructions...", text: $editedDescription, axis: .vertical)
+                            TextField("Add details, instructions, or context...", text: $editedDescription, axis: .vertical)
                                 .font(.system(size: 15))
                                 .lineLimit(3...8)
                                 .padding(14)
@@ -362,7 +422,7 @@ struct DrawerSubtaskDetailSheet: View {
                                     .background(Color(uiColor: .secondarySystemBackground))
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                             } else {
-                                Text("No instructions")
+                                Text("No notes")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.tertiary)
                                     .padding(14)
@@ -390,39 +450,49 @@ struct DrawerSubtaskDetailSheet: View {
                         }
 
                         if canEdit {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(viewModel.project.members) { member in
-                                        let isSelected = selectedAssigneeIds.contains(member.id)
-                                        Button {
-                                            if isSelected {
-                                                selectedAssigneeIds.remove(member.id)
-                                            } else {
-                                                selectedAssigneeIds.insert(member.id)
-                                            }
-                                        } label: {
-                                            HStack(spacing: 4) {
-                                                Circle()
-                                                    .fill(isSelected ? Color.white.opacity(0.3) : Theme.primaryLight)
-                                                    .frame(width: 24, height: 24)
-                                                    .overlay {
-                                                        Text(member.avatarInitials)
-                                                            .font(.system(size: 9, weight: .medium))
-                                                            .foregroundStyle(isSelected ? .white : Theme.primary)
-                                                    }
-                                                Text(member.displayFirstName)
-                                                    .font(.system(size: 13))
-
+                            if availableAssignees.isEmpty {
+                                Text("No one assigned to parent task")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        ForEach(availableAssignees) { member in
+                                            let isSelected = selectedAssigneeIds.contains(member.id)
+                                            Button {
                                                 if isSelected {
-                                                    Image(systemName: "checkmark")
-                                                        .font(.system(size: 10, weight: .bold))
+                                                    selectedAssigneeIds.remove(member.id)
+                                                } else {
+                                                    selectedAssigneeIds.insert(member.id)
                                                 }
+                                            } label: {
+                                                HStack(spacing: 4) {
+                                                    Circle()
+                                                        .fill(isSelected ? Color.white.opacity(0.3) : Theme.primaryLight)
+                                                        .frame(width: 24, height: 24)
+                                                        .overlay {
+                                                            Text(member.avatarInitials)
+                                                                .font(.system(size: 9, weight: .medium))
+                                                                .foregroundStyle(isSelected ? .white : Theme.primary)
+                                                        }
+                                                    Text(member.id == viewModel.currentUser.id ? "Me" : member.displayFirstName)
+                                                        .font(.system(size: 13))
+
+                                                    if isSelected {
+                                                        Image(systemName: "checkmark")
+                                                            .font(.system(size: 10, weight: .bold))
+                                                    }
+                                                }
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(isSelected ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                                .foregroundColor(isSelected ? .white : .primary)
+                                                .clipShape(Capsule())
                                             }
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(isSelected ? Theme.primary : Color(uiColor: .secondarySystemBackground))
-                                            .foregroundColor(isSelected ? .white : .primary)
-                                            .clipShape(Capsule())
                                         }
                                     }
                                 }
@@ -459,6 +529,125 @@ struct DrawerSubtaskDetailSheet: View {
                                 }
                             }
                         }
+                    }
+
+                    // Due date section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Due date")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        if canEdit {
+                            Button {
+                                showingDatePicker.toggle()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Theme.primary)
+
+                                    if let date = dueDate {
+                                        Text(formatDueDate(date))
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(.primary)
+
+                                        Spacer()
+
+                                        Button {
+                                            dueDate = nil
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 14))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    } else {
+                                        Text("Set due date")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                    }
+                                }
+                                .padding(14)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
+
+                            if showingDatePicker {
+                                DatePicker(
+                                    "Due date",
+                                    selection: Binding(
+                                        get: { dueDate ?? Date() },
+                                        set: { dueDate = $0 }
+                                    ),
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.graphical)
+                                .tint(Theme.primary)
+                            }
+                        } else {
+                            if let date = subtask.dueDate {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(subtask.isOverdue ? .red : Theme.primary)
+                                    Text(formatDueDate(date))
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(subtask.isOverdue ? .red : .primary)
+                                    Spacer()
+                                }
+                                .padding(14)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else {
+                                Text("No due date")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                    }
+
+                    // Attachments section
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Attachments")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if canEdit {
+                                Button {
+                                    // TODO: Add attachment
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 14))
+                                        Text("Add")
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .foregroundStyle(Theme.primary)
+                                }
+                            }
+                        }
+
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                            .frame(height: 80)
+                            .overlay {
+                                VStack(spacing: 6) {
+                                    Image(systemName: "doc.badge.plus")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(.tertiary)
+                                    Text("Photos, documents, and files")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
                     }
 
                     // Created by section
@@ -519,6 +708,7 @@ struct DrawerSubtaskDetailSheet: View {
                 editedTitle = subtask.title
                 editedDescription = subtask.description ?? ""
                 selectedAssigneeIds = Set(subtask.assignees.map { $0.id })
+                dueDate = subtask.dueDate
             }
         }
     }
@@ -536,14 +726,644 @@ struct DrawerSubtaskDetailSheet: View {
             viewModel.updateSubtaskDescription(in: task, subtask: subtask, description: newDesc)
         }
 
-        // Update assignees
+        // Save due date
+        if dueDate != subtask.dueDate {
+            viewModel.updateSubtaskDueDate(in: task, subtask: subtask, dueDate: dueDate)
+        }
+
+        // Update assignees (only from available assignees, which are task assignees or all members if none)
         let originalIds = Set(subtask.assignees.map { $0.id })
-        for member in viewModel.project.members {
+        for member in availableAssignees {
             let wasSelected = originalIds.contains(member.id)
             let isNowSelected = selectedAssigneeIds.contains(member.id)
             if wasSelected != isNowSelected {
                 viewModel.toggleSubtaskAssignee(in: task, subtask: subtask, member: member)
             }
+        }
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Add Subtask Sheet
+
+struct AddSubtaskSheet: View {
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var subtaskTitle = ""
+    @State private var description = ""
+    @State private var selectedAssigneeIds: Set<UUID> = []
+    @State private var dueDate: Date? = nil
+    @State private var showingDatePicker = false
+    @FocusState private var focusedField: Field?
+
+    enum Field: Hashable {
+        case title, description
+    }
+
+    // Assignees are limited to people assigned to the parent task
+    // If no one is assigned to the task, show all project members
+    private var availableAssignees: [User] {
+        if task.assignees.isEmpty {
+            return viewModel.project.members
+        }
+        return task.assignees
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Subtask title
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Subtask")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        TextField("What needs to be done?", text: $subtaskTitle)
+                            .font(.system(size: 17))
+                            .padding(14)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .focused($focusedField, equals: .title)
+                    }
+
+                    // Assignees (limited to task assignees)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Assign to")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            if task.assignees.isEmpty {
+                                Text("(any team member)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            } else {
+                                Text("(from task assignees)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+
+                        FlowLayout(spacing: 8) {
+                            ForEach(availableAssignees) { member in
+                                let isSelected = selectedAssigneeIds.contains(member.id)
+                                Button {
+                                    if isSelected {
+                                        selectedAssigneeIds.remove(member.id)
+                                    } else {
+                                        selectedAssigneeIds.insert(member.id)
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(isSelected ? Color.white.opacity(0.3) : Theme.primaryLight)
+                                            .frame(width: 28, height: 28)
+                                            .overlay {
+                                                Text(member.avatarInitials)
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundStyle(isSelected ? .white : Theme.primary)
+                                            }
+                                        Text(member.id == viewModel.currentUser.id ? "Me" : member.displayFirstName)
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(isSelected ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                    .foregroundStyle(isSelected ? .white : .primary)
+                                    .clipShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    // Due date
+                    VStack(alignment: .leading, spacing: 8) {
+                        Button {
+                            showingDatePicker.toggle()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(Theme.primary)
+
+                                if let date = dueDate {
+                                    Text(formatDueDate(date))
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(.primary)
+
+                                    Button {
+                                        dueDate = nil
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Set due date")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        if showingDatePicker {
+                            DatePicker(
+                                "Due date",
+                                selection: Binding(
+                                    get: { dueDate ?? Date() },
+                                    set: { dueDate = $0 }
+                                ),
+                                displayedComponents: .date
+                            )
+                            .datePickerStyle(.graphical)
+                            .tint(Theme.primary)
+                        }
+                    }
+
+                    // Notes/Instructions
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        TextField("Add details, instructions, or context...", text: $description, axis: .vertical)
+                            .font(.system(size: 15))
+                            .lineLimit(4...8)
+                            .padding(14)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .focused($focusedField, equals: .description)
+                    }
+
+                    // Attachments
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Attachments")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            Button {
+                                // TODO: Add attachment
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 14))
+                                    Text("Add")
+                                        .font(.system(size: 14, weight: .medium))
+                                }
+                                .foregroundStyle(Theme.primary)
+                            }
+                        }
+
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                            .frame(height: 80)
+                            .overlay {
+                                VStack(spacing: 6) {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(.tertiary)
+                                    Text("Photos, documents, and files")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("New Subtask")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        createSubtask()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(subtaskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .onAppear {
+                focusedField = .title
+            }
+        }
+    }
+
+    private func createSubtask() {
+        let assignees = availableAssignees.filter { selectedAssigneeIds.contains($0.id) }
+        let desc = description.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        viewModel.addSubtask(
+            to: task,
+            title: subtaskTitle,
+            description: desc.isEmpty ? nil : desc,
+            assignees: assignees,
+            dueDate: dueDate
+        )
+        dismiss()
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Task Info Sheet
+
+struct TaskInfoSheet: View {
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var editedTitle: String = ""
+    @State private var editedNotes: String = ""
+    @State private var selectedAssigneeIds: Set<UUID> = []
+    @State private var dueDate: Date? = nil
+    @State private var showingDatePicker = false
+
+    private var canEdit: Bool {
+        viewModel.canEditTask(task)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Title section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Task")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        if canEdit {
+                            TextField("Task title", text: $editedTitle)
+                                .font(.system(size: 17))
+                                .padding(14)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        } else {
+                            Text(task.title)
+                                .font(.system(size: 17))
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+
+                    // Assignees section
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Assigned to")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if !selectedAssigneeIds.isEmpty {
+                                Text("\(selectedAssigneeIds.count) people")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Theme.primary)
+                            }
+                        }
+
+                        if canEdit {
+                            FlowLayout(spacing: 8) {
+                                ForEach(viewModel.project.members) { member in
+                                    let isSelected = selectedAssigneeIds.contains(member.id)
+                                    Button {
+                                        if isSelected {
+                                            selectedAssigneeIds.remove(member.id)
+                                        } else {
+                                            selectedAssigneeIds.insert(member.id)
+                                        }
+                                    } label: {
+                                        HStack(spacing: 6) {
+                                            Circle()
+                                                .fill(isSelected ? Color.white.opacity(0.3) : Theme.primaryLight)
+                                                .frame(width: 28, height: 28)
+                                                .overlay {
+                                                    Text(member.avatarInitials)
+                                                        .font(.system(size: 10, weight: .medium))
+                                                        .foregroundStyle(isSelected ? .white : Theme.primary)
+                                                }
+                                            Text(member.id == viewModel.currentUser.id ? "Me" : member.displayFirstName)
+                                                .font(.system(size: 14, weight: .medium))
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(isSelected ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                        .foregroundStyle(isSelected ? .white : .primary)
+                                        .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        } else {
+                            if task.assignees.isEmpty {
+                                Text("No one assigned")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(task.assignees) { assignee in
+                                        HStack(spacing: 10) {
+                                            Circle()
+                                                .fill(Theme.primaryLight)
+                                                .frame(width: 32, height: 32)
+                                                .overlay {
+                                                    Text(assignee.avatarInitials)
+                                                        .font(.system(size: 11, weight: .medium))
+                                                        .foregroundStyle(Theme.primary)
+                                                }
+                                            Text(assignee.displayName)
+                                                .font(.system(size: 15))
+                                            Spacer()
+                                        }
+                                        .padding(10)
+                                        .background(Color(uiColor: .secondarySystemBackground))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Due date section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Due date")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        if canEdit {
+                            Button {
+                                showingDatePicker.toggle()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Theme.primary)
+
+                                    if let date = dueDate {
+                                        Text(formatDueDate(date))
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(.primary)
+
+                                        Spacer()
+
+                                        Button {
+                                            dueDate = nil
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 14))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    } else {
+                                        Text("Set due date")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                    }
+                                }
+                                .padding(14)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
+
+                            if showingDatePicker {
+                                DatePicker(
+                                    "Due date",
+                                    selection: Binding(
+                                        get: { dueDate ?? Date() },
+                                        set: { dueDate = $0 }
+                                    ),
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.graphical)
+                                .tint(Theme.primary)
+                            }
+                        } else {
+                            if let date = task.dueDate {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(task.isOverdue ? .red : Theme.primary)
+                                    Text(formatDueDate(date))
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(task.isOverdue ? .red : .primary)
+                                    Spacer()
+                                }
+                                .padding(14)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else {
+                                Text("No due date")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                    }
+
+                    // Notes section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes & Instructions")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        if canEdit {
+                            TextField("Add details, instructions, or context...", text: $editedNotes, axis: .vertical)
+                                .font(.system(size: 15))
+                                .lineLimit(4...10)
+                                .padding(14)
+                                .background(Color(uiColor: .secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        } else {
+                            if let notes = task.notes, !notes.isEmpty {
+                                Text(notes)
+                                    .font(.system(size: 15))
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else {
+                                Text("No notes")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.tertiary)
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                        }
+                    }
+
+                    // Attachments placeholder
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Attachments")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            if canEdit {
+                                Button {
+                                    // TODO: Add attachment
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 14))
+                                        Text("Add")
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .foregroundStyle(Theme.primary)
+                                }
+                            }
+                        }
+
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                            .frame(height: 80)
+                            .overlay {
+                                VStack(spacing: 6) {
+                                    Image(systemName: "doc.badge.plus")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(.tertiary)
+                                    Text("Photos, documents, and files")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                    }
+
+                    // Created by section
+                    if let creator = task.createdBy {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Created by")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.2))
+                                    .frame(width: 32, height: 32)
+                                    .overlay {
+                                        Text(creator.avatarInitials)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundStyle(.purple)
+                                    }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(creator.displayName)
+                                        .font(.system(size: 15))
+                                    Text(task.createdAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(10)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+
+                    Spacer(minLength: 20)
+                }
+                .padding()
+            }
+            .navigationTitle(canEdit ? "Edit Task" : "Task Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(canEdit ? "Cancel" : "Done") {
+                        dismiss()
+                    }
+                }
+                if canEdit {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            saveChanges()
+                            dismiss()
+                        }
+                        .fontWeight(.semibold)
+                        .disabled(editedTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
+            .onAppear {
+                editedTitle = task.title
+                editedNotes = task.notes ?? ""
+                selectedAssigneeIds = Set(task.assignees.map { $0.id })
+                dueDate = task.dueDate
+            }
+        }
+    }
+
+    private func saveChanges() {
+        // Update task via viewModel
+        viewModel.updateTask(
+            task,
+            title: editedTitle,
+            assigneeIds: selectedAssigneeIds,
+            dueDate: dueDate,
+            notes: editedNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedNotes
+        )
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else if calendar.isDateInYesterday(date) {
+            return "Yesterday"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
         }
     }
 }

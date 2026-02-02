@@ -71,15 +71,17 @@ struct Subtask: Identifiable, Hashable {
     var description: String? // Instructions/details for this subtask
     var isDone: Bool
     var assignees: [User] // Multiple assignees
+    var dueDate: Date?
     var createdBy: User?
     var createdAt: Date
 
-    init(id: UUID = UUID(), title: String, description: String? = nil, isDone: Bool = false, assignees: [User] = [], createdBy: User? = nil, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), title: String, description: String? = nil, isDone: Bool = false, assignees: [User] = [], dueDate: Date? = nil, createdBy: User? = nil, createdAt: Date = Date()) {
         self.id = id
         self.title = title
         self.description = description
         self.isDone = isDone
         self.assignees = assignees
+        self.dueDate = dueDate
         self.createdBy = createdBy
         self.createdAt = createdAt
     }
@@ -87,6 +89,11 @@ struct Subtask: Identifiable, Hashable {
     // Convenience for backward compatibility
     var assignee: User? {
         assignees.first
+    }
+
+    var isOverdue: Bool {
+        guard let dueDate = dueDate, !isDone else { return false }
+        return dueDate < Calendar.current.startOfDay(for: Date())
     }
 }
 
