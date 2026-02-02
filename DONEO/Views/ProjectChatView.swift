@@ -812,22 +812,19 @@ struct ProjectInfoView: View {
 struct ProjectAttachmentSheet: View {
     @Bindable var viewModel: ProjectChatViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab: AttachmentTab = .gallery
+    @State private var selectedTab: AttachmentTab = .photos
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var loadedImages: [UIImage] = []
     @State private var showingUploadDetails = false
-    @State private var searchText = ""
     @State private var showingFilePicker = false
 
     enum AttachmentTab: String, CaseIterable {
-        case gallery = "Gallery"
         case photos = "Photos"
         case files = "Files"
         case contact = "Contact"
 
         var icon: String {
             switch self {
-            case .gallery: return "photo.on.rectangle.angled"
             case .photos: return "photo.fill"
             case .files: return "doc.fill"
             case .contact: return "person.crop.square.fill"
@@ -901,7 +898,6 @@ struct ProjectAttachmentSheet: View {
 
     private var headerTitle: String {
         switch selectedTab {
-        case .gallery: return "Gallery"
         case .photos: return "Recents"
         case .files: return "Files"
         case .contact: return "Contacts"
@@ -913,121 +909,12 @@ struct ProjectAttachmentSheet: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
-        case .gallery:
-            galleryContent
         case .photos:
             photosContent
         case .files:
             filesContent
         case .contact:
             contactContent
-        }
-    }
-
-    // MARK: - Gallery Content (Project Attachments)
-
-    private var galleryContent: some View {
-        VStack(spacing: 0) {
-            // Search bar
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search files...", text: $searchText)
-                    .font(.system(size: 15))
-            }
-            .padding(10)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            if viewModel.project.attachments.isEmpty {
-                // Empty state
-                VStack(spacing: 16) {
-                    Spacer()
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.tertiary)
-                    Text("No files yet")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("Upload photos or files to see them here")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.tertiary)
-                    Spacer()
-                }
-            } else {
-                // Attachments grouped by task
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 16) {
-                        ForEach(viewModel.project.attachmentsGroupedByTask, id: \.task?.id) { group in
-                            attachmentGroup(task: group.task, attachments: group.attachments)
-                        }
-                    }
-                    .padding()
-                }
-            }
-        }
-    }
-
-    private func attachmentGroup(task: DONEOTask?, attachments: [ProjectAttachment]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Group header
-            HStack {
-                Image(systemName: task != nil ? "checklist" : "paperclip")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.primary)
-                Text(task?.title ?? "Unlinked")
-                    .font(.system(size: 14, weight: .semibold))
-                Text("(\(attachments.count))")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-
-            // Attachments grid
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 4),
-                GridItem(.flexible(), spacing: 4),
-                GridItem(.flexible(), spacing: 4),
-                GridItem(.flexible(), spacing: 4)
-            ], spacing: 4) {
-                ForEach(attachments) { attachment in
-                    attachmentThumbnail(attachment)
-                }
-            }
-        }
-    }
-
-    private func attachmentThumbnail(_ attachment: ProjectAttachment) -> some View {
-        ZStack {
-            if attachment.type == .image {
-                // Image placeholder
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Theme.primaryLight)
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay {
-                        Image(systemName: "photo")
-                            .foregroundStyle(Theme.primary)
-                    }
-            } else {
-                // Document
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(uiColor: .secondarySystemBackground))
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay {
-                        VStack(spacing: 4) {
-                            Image(systemName: attachment.iconName)
-                                .font(.system(size: 20))
-                                .foregroundStyle(Theme.primary)
-                            Text(attachment.fileName)
-                                .font(.system(size: 8))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        .padding(4)
-                    }
-            }
         }
     }
 

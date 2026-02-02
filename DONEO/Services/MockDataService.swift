@@ -407,12 +407,153 @@ final class MockDataService {
         let task5_1 = DONEOTask(title: "Send invoice", assignees: [alex], status: .pending, dueDate: yesterday)
         let task5_2 = DONEOTask(title: "Schedule follow-up meeting", assignees: [sarah], status: .pending, dueDate: tomorrow)
 
+        // Create mock attachments for projects
+        let project1Attachments: [ProjectAttachment] = [
+            ProjectAttachment(
+                type: .document,
+                fileName: "Kitchen_Materials_Quote.pdf",
+                fileSize: 245_000,
+                uploadedBy: maria,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -3, to: today) ?? today,
+                linkedTaskId: task1_1.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "Supplier_Comparison.xlsx",
+                fileSize: 128_000,
+                uploadedBy: maria,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -2, to: today) ?? today,
+                linkedTaskId: task1_1.id
+            ),
+            ProjectAttachment(
+                type: .image,
+                fileName: "Kitchen_Measurements.jpg",
+                fileSize: 3_200_000,
+                uploadedBy: james,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -1, to: today) ?? today,
+                linkedTaskId: task1_1.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "Electrical_Permit.pdf",
+                fileSize: 89_000,
+                uploadedBy: alex,
+                uploadedAt: Calendar.current.date(byAdding: .hour, value: -5, to: today) ?? today,
+                linkedTaskId: task1_2.id
+            ),
+            ProjectAttachment(
+                type: .image,
+                fileName: "Bathroom_Tiling_Complete.jpg",
+                fileSize: 2_800_000,
+                uploadedBy: james,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -4, to: today) ?? today,
+                linkedTaskId: task1_3.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "Window_Specs.pdf",
+                fileSize: 156_000,
+                uploadedBy: alex,
+                uploadedAt: Calendar.current.date(byAdding: .hour, value: -2, to: today) ?? today,
+                linkedTaskId: task1_4.id
+            )
+        ]
+
+        let project2Attachments: [ProjectAttachment] = [
+            ProjectAttachment(
+                type: .document,
+                fileName: "Walkthrough_Checklist.pdf",
+                fileSize: 67_000,
+                uploadedBy: sarah,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -1, to: today) ?? today,
+                linkedTaskId: task2_1.id
+            ),
+            ProjectAttachment(
+                type: .image,
+                fileName: "Plumbing_Issue.jpg",
+                fileSize: 1_950_000,
+                uploadedBy: alex,
+                uploadedAt: Calendar.current.date(byAdding: .hour, value: -3, to: today) ?? today,
+                linkedTaskId: task2_1.id
+            ),
+            ProjectAttachment(
+                type: .image,
+                fileName: "Garage_Door_Fixed.jpg",
+                fileSize: 2_100_000,
+                uploadedBy: sarah,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -2, to: today) ?? today,
+                linkedTaskId: task2_2.id
+            )
+        ]
+
+        let project3Attachments: [ProjectAttachment] = [
+            ProjectAttachment(
+                type: .document,
+                fileName: "Phase2_Blueprints_v3.pdf",
+                fileSize: 4_500_000,
+                uploadedBy: mike,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -5, to: today) ?? today,
+                linkedTaskId: task3_1.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "HVAC_Quote_ClimateControl.pdf",
+                fileSize: 312_000,
+                uploadedBy: maria,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -2, to: today) ?? today,
+                linkedTaskId: task3_2.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "City_Permit_BLD-2024-0293.pdf",
+                fileSize: 178_000,
+                uploadedBy: alex,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -7, to: today) ?? today,
+                linkedTaskId: task3_3.id
+            ),
+            ProjectAttachment(
+                type: .image,
+                fileName: "Foundation_Inspection_Pass.jpg",
+                fileSize: 2_400_000,
+                uploadedBy: mike,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -10, to: today) ?? today,
+                linkedTaskId: task3_4.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "Plumbing_Layout.pdf",
+                fileSize: 890_000,
+                uploadedBy: alex,
+                uploadedAt: Calendar.current.date(byAdding: .hour, value: -6, to: today) ?? today,
+                linkedTaskId: task3_5.id
+            )
+        ]
+
+        let project5Attachments: [ProjectAttachment] = [
+            ProjectAttachment(
+                type: .document,
+                fileName: "Invoice_ABC-2024-0158.pdf",
+                fileSize: 145_000,
+                uploadedBy: alex,
+                uploadedAt: Calendar.current.date(byAdding: .day, value: -1, to: today) ?? today,
+                linkedTaskId: task5_1.id
+            ),
+            ProjectAttachment(
+                type: .document,
+                fileName: "Project_Summary.docx",
+                fileSize: 234_000,
+                uploadedBy: sarah,
+                uploadedAt: Calendar.current.date(byAdding: .hour, value: -8, to: today) ?? today
+            )
+        ]
+
         return [
             Project(
                 name: "Downtown Renovation",
                 members: [alex, maria, james],
                 tasks: [task1_1, task1_2, task1_3, task1_4],
                 messages: project1Messages,
+                attachments: project1Attachments,
                 unreadTaskIds: [
                     alex.id: [task1_1.id, task1_3.id],  // Alex: task assigned to Maria, completed task
                     maria.id: [task1_2.id],  // Maria: task assigned to Alex
@@ -426,6 +567,7 @@ final class MockDataService {
                 members: [alex, sarah],
                 tasks: [task2_1, task2_2],
                 messages: project2Messages,
+                attachments: project2Attachments,
                 unreadTaskIds: [:],  // No unread
                 lastActivity: Calendar.current.date(byAdding: .hour, value: -2, to: Date()),
                 lastActivityPreview: "Completed: Fix garage door"
@@ -435,6 +577,7 @@ final class MockDataService {
                 members: [alex, maria, mike],
                 tasks: [task3_1, task3_2, task3_3, task3_4, task3_5],
                 messages: project3Messages,
+                attachments: project3Attachments,
                 unreadTaskIds: [
                     alex.id: [task3_1.id, task3_2.id, task3_4.id, task3_5.id],
                     maria.id: [task3_1.id, task3_3.id, task3_4.id],
@@ -448,6 +591,7 @@ final class MockDataService {
                 members: [alex, james, mike],
                 tasks: [task4_1, task4_2],
                 messages: [],
+                attachments: [],
                 unreadTaskIds: [:],  // No unread
                 lastActivity: Calendar.current.date(byAdding: .day, value: -1, to: Date()),
                 lastActivityPreview: "Completed: Replace drill bits"
@@ -457,6 +601,7 @@ final class MockDataService {
                 members: [alex, sarah],
                 tasks: [task5_1, task5_2],
                 messages: [],
+                attachments: project5Attachments,
                 unreadTaskIds: [
                     alex.id: [task5_2.id]  // Alex: Sarah's task
                 ],
