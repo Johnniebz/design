@@ -387,4 +387,139 @@ final class ProjectChatViewModel {
             }
         }
     }
+
+    // MARK: - Attachment Management
+
+    func addAttachment(
+        type: AttachmentType,
+        fileName: String,
+        fileSize: Int64 = 0,
+        thumbnailURL: URL? = nil,
+        fileURL: URL? = nil,
+        linkedTaskId: UUID? = nil,
+        linkedSubtaskId: UUID? = nil,
+        caption: String? = nil
+    ) {
+        let attachment = ProjectAttachment(
+            type: type,
+            fileName: fileName,
+            fileSize: fileSize,
+            uploadedBy: currentUser,
+            thumbnailURL: thumbnailURL,
+            fileURL: fileURL,
+            linkedTaskId: linkedTaskId,
+            linkedSubtaskId: linkedSubtaskId,
+            caption: caption
+        )
+        project.attachments.append(attachment)
+
+        // Send a message about the attachment
+        var messageContent = "shared \(type == .image ? "a photo" : "a file")"
+        if let caption = caption, !caption.isEmpty {
+            messageContent += ": \(caption)"
+        }
+
+        var taskRef: TaskReference? = nil
+        var subtaskRef: SubtaskReference? = nil
+
+        if let taskId = linkedTaskId, let task = project.tasks.first(where: { $0.id == taskId }) {
+            taskRef = TaskReference(task: task)
+            if let subtaskId = linkedSubtaskId, let subtask = task.subtasks.first(where: { $0.id == subtaskId }) {
+                subtaskRef = SubtaskReference(subtask: subtask)
+            }
+        }
+
+        let messageAttachment = MessageAttachment(
+            type: type,
+            fileName: fileName,
+            fileSize: fileSize,
+            thumbnailURL: thumbnailURL,
+            fileURL: fileURL
+        )
+
+        let message = Message(
+            content: messageContent,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: taskRef,
+            referencedSubtask: subtaskRef,
+            attachment: messageAttachment
+        )
+        project.messages.append(message)
+
+        // Update project's last activity
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName) shared \(type == .image ? "a photo" : "a file")"
+
+        MockDataService.shared.updateProject(project)
+    }
+
+    func addAttachments(
+        items: [(type: AttachmentType, fileName: String, fileSize: Int64, fileURL: URL?)],
+        linkedTaskId: UUID? = nil,
+        linkedSubtaskId: UUID? = nil,
+        caption: String? = nil
+    ) {
+        var attachments: [ProjectAttachment] = []
+
+        for item in items {
+            let attachment = ProjectAttachment(
+                type: item.type,
+                fileName: item.fileName,
+                fileSize: item.fileSize,
+                uploadedBy: currentUser,
+                fileURL: item.fileURL,
+                linkedTaskId: linkedTaskId,
+                linkedSubtaskId: linkedSubtaskId,
+                caption: caption
+            )
+            project.attachments.append(attachment)
+            attachments.append(attachment)
+        }
+
+        // Send a message about the attachments
+        let count = items.count
+        var messageContent = count == 1
+            ? "shared a \(items[0].type == .image ? "photo" : "file")"
+            : "shared \(count) \(items.allSatisfy { $0.type == .image } ? "photos" : "files")"
+        if let caption = caption, !caption.isEmpty {
+            messageContent += ": \(caption)"
+        }
+
+        var taskRef: TaskReference? = nil
+        var subtaskRef: SubtaskReference? = nil
+
+        if let taskId = linkedTaskId, let task = project.tasks.first(where: { $0.id == taskId }) {
+            taskRef = TaskReference(task: task)
+            if let subtaskId = linkedSubtaskId, let subtask = task.subtasks.first(where: { $0.id == subtaskId }) {
+                subtaskRef = SubtaskReference(subtask: subtask)
+            }
+        }
+
+        // For multiple attachments, create a MessageAttachment for the first one
+        let messageAttachment: MessageAttachment? = items.first.map { item in
+            MessageAttachment(
+                type: item.type,
+                fileName: item.fileName,
+                fileSize: item.fileSize,
+                fileURL: item.fileURL
+            )
+        }
+
+        let message = Message(
+            content: messageContent,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: taskRef,
+            referencedSubtask: subtaskRef,
+            attachment: messageAttachment
+        )
+        project.messages.append(message)
+
+        // Update project's last activity
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName) \(messageContent)"
+
+        MockDataService.shared.updateProject(project)
+    }
 }

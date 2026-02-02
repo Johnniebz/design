@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct ProjectChatView: View {
     @State private var viewModel: ProjectChatViewModel
@@ -41,7 +42,7 @@ struct ProjectChatView: View {
             ProjectInfoView(viewModel: viewModel)
         }
         .sheet(isPresented: $showingAttachmentOptions) {
-            ProjectAttachmentSheet()
+            ProjectAttachmentSheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -50,16 +51,21 @@ struct ProjectChatView: View {
     // MARK: - Header View (Project name + member count)
 
     private var headerView: some View {
-        VStack(spacing: 1) {
-            Text(viewModel.project.name)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+        Button {
+            showingProjectInfo = true
+        } label: {
+            VStack(spacing: 1) {
+                Text(viewModel.project.name)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
-            Text("\(viewModel.project.members.count) members")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                Text("\(viewModel.project.members.count) members")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Chat Messages Area
@@ -408,6 +414,11 @@ struct ProjectMessageBubble: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Attachment preview
+                    if let attachment = message.attachment {
+                        attachmentPreview(attachment)
+                    }
+
                     // Message content
                     Text(message.content)
                         .font(.system(size: 15))
@@ -447,6 +458,91 @@ struct ProjectMessageBubble: View {
             if !message.isFromCurrentUser {
                 Spacer(minLength: 60)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func attachmentPreview(_ attachment: MessageAttachment) -> some View {
+        switch attachment.type {
+        case .image:
+            // Photo attachment
+            HStack(spacing: 8) {
+                Image(systemName: "photo.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.8) : Theme.primary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Photo")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(attachment.fileName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(10)
+            .background(
+                message.isFromCurrentUser
+                    ? Color.white.opacity(0.15)
+                    : Color(uiColor: .systemGray4)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+        case .document:
+            // Document attachment
+            HStack(spacing: 8) {
+                Image(systemName: "doc.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.8) : Theme.primary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(attachment.fileName)
+                        .font(.system(size: 13, weight: .medium))
+                        .lineLimit(1)
+                    if attachment.fileSize > 0 {
+                        Text(ByteCountFormatter.string(fromByteCount: attachment.fileSize, countStyle: .file))
+                            .font(.system(size: 11))
+                            .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.8) : Theme.primary)
+            }
+            .padding(10)
+            .background(
+                message.isFromCurrentUser
+                    ? Color.white.opacity(0.15)
+                    : Color(uiColor: .systemGray4)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+        case .video:
+            // Video attachment
+            HStack(spacing: 8) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.8) : Theme.primary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Video")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(attachment.fileName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(10)
+            .background(
+                message.isFromCurrentUser
+                    ? Color.white.opacity(0.15)
+                    : Color(uiColor: .systemGray4)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 }
@@ -552,6 +648,58 @@ struct ProjectInfoView: View {
                     Text("\(viewModel.project.members.count) Members")
                 }
 
+                // Media & Documents section
+                if !viewModel.project.attachments.isEmpty {
+                    Section {
+                        // Photos
+                        let photos = viewModel.project.attachments.filter { $0.type == .image }
+                        if !photos.isEmpty {
+                            NavigationLink {
+                                mediaListView(title: "Photos", attachments: photos)
+                            } label: {
+                                HStack {
+                                    Label("Photos", systemImage: "photo.fill")
+                                    Spacer()
+                                    Text("\(photos.count)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        // Documents
+                        let documents = viewModel.project.attachments.filter { $0.type == .document }
+                        if !documents.isEmpty {
+                            NavigationLink {
+                                mediaListView(title: "Documents", attachments: documents)
+                            } label: {
+                                HStack {
+                                    Label("Documents", systemImage: "doc.fill")
+                                    Spacer()
+                                    Text("\(documents.count)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        // Videos
+                        let videos = viewModel.project.attachments.filter { $0.type == .video }
+                        if !videos.isEmpty {
+                            NavigationLink {
+                                mediaListView(title: "Videos", attachments: videos)
+                            } label: {
+                                HStack {
+                                    Label("Videos", systemImage: "video.fill")
+                                    Spacer()
+                                    Text("\(videos.count)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Media & Documents")
+                    }
+                }
+
                 // Actions section
                 Section {
                     Button {
@@ -589,22 +737,97 @@ struct ProjectInfoView: View {
             }
         }
     }
+
+    // MARK: - Media List View
+
+    private func mediaListView(title: String, attachments: [ProjectAttachment]) -> some View {
+        List {
+            // Group by task
+            let grouped = Dictionary(grouping: attachments) { $0.linkedTaskId }
+
+            ForEach(Array(grouped.keys), id: \.self) { taskId in
+                Section {
+                    ForEach(grouped[taskId] ?? []) { attachment in
+                        mediaRow(attachment)
+                    }
+                } header: {
+                    if let taskId = taskId,
+                       let task = viewModel.project.tasks.first(where: { $0.id == taskId }) {
+                        Label(task.title, systemImage: "checklist")
+                    } else {
+                        Text("General")
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func mediaRow(_ attachment: ProjectAttachment) -> some View {
+        HStack(spacing: 12) {
+            // Thumbnail
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Theme.primaryLight)
+                    .frame(width: 50, height: 50)
+
+                Image(systemName: attachment.iconName)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.primary)
+            }
+
+            // Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(attachment.fileName)
+                    .font(.system(size: 15, weight: .medium))
+                    .lineLimit(1)
+
+                HStack(spacing: 8) {
+                    Text(attachment.uploadedBy.displayFirstName)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+
+                    Text(attachment.uploadedAt, style: .date)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+
+                    if attachment.fileSize > 0 {
+                        Text(attachment.fileSizeFormatted)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
 }
 
 // MARK: - Project Attachment Sheet
 
 struct ProjectAttachmentSheet: View {
+    @Bindable var viewModel: ProjectChatViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab: AttachmentTab = .photos
-    @State private var selectedPhotos: Set<Int> = []
+    @State private var selectedTab: AttachmentTab = .gallery
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var loadedImages: [UIImage] = []
+    @State private var showingUploadDetails = false
+    @State private var searchText = ""
+    @State private var showingFilePicker = false
 
     enum AttachmentTab: String, CaseIterable {
+        case gallery = "Gallery"
         case photos = "Photos"
         case files = "Files"
         case contact = "Contact"
 
         var icon: String {
             switch self {
+            case .gallery: return "photo.on.rectangle.angled"
             case .photos: return "photo.fill"
             case .files: return "doc.fill"
             case .contact: return "person.crop.square.fill"
@@ -622,6 +845,13 @@ struct ProjectAttachmentSheet: View {
 
             // Tab bar
             tabBar
+        }
+        .sheet(isPresented: $showingUploadDetails) {
+            AttachmentUploadSheet(viewModel: viewModel, selectedImages: loadedImages) {
+                selectedPhotoItems = []
+                loadedImages = []
+                dismiss()
+            }
         }
     }
 
@@ -647,13 +877,12 @@ struct ProjectAttachmentSheet: View {
 
             Spacer()
 
-            // Send button (only show when photos selected)
-            if !selectedPhotos.isEmpty {
+            // Next/Send button (only show when photos selected)
+            if !selectedPhotoItems.isEmpty {
                 Button {
-                    // Send selected photos
-                    dismiss()
+                    showingUploadDetails = true
                 } label: {
-                    Text("Send (\(selectedPhotos.count))")
+                    Text("Next (\(selectedPhotoItems.count))")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
@@ -672,6 +901,7 @@ struct ProjectAttachmentSheet: View {
 
     private var headerTitle: String {
         switch selectedTab {
+        case .gallery: return "Gallery"
         case .photos: return "Recents"
         case .files: return "Files"
         case .contact: return "Contacts"
@@ -683,6 +913,8 @@ struct ProjectAttachmentSheet: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
+        case .gallery:
+            galleryContent
         case .photos:
             photosContent
         case .files:
@@ -692,81 +924,203 @@ struct ProjectAttachmentSheet: View {
         }
     }
 
-    // MARK: - Photos Content
+    // MARK: - Gallery Content (Project Attachments)
 
-    private var photosContent: some View {
-        ScrollView {
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 2),
-                GridItem(.flexible(), spacing: 2),
-                GridItem(.flexible(), spacing: 2)
-            ], spacing: 2) {
-                // Camera button
-                Button {
-                    // Open camera
-                } label: {
-                    VStack(spacing: 8) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 32))
-                            .foregroundStyle(Theme.primary)
-                        Text("Camera")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Theme.primary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
-                    .background(Color(uiColor: .systemBackground))
+    private var galleryContent: some View {
+        VStack(spacing: 0) {
+            // Search bar
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search files...", text: $searchText)
+                    .font(.system(size: 15))
+            }
+            .padding(10)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            if viewModel.project.attachments.isEmpty {
+                // Empty state
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.tertiary)
+                    Text("No files yet")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("Upload photos or files to see them here")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
                 }
-
-                // Sample photos (placeholders with colors)
-                ForEach(0..<11, id: \.self) { index in
-                    photoCell(index: index)
+            } else {
+                // Attachments grouped by task
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        ForEach(viewModel.project.attachmentsGroupedByTask, id: \.task?.id) { group in
+                            attachmentGroup(task: group.task, attachments: group.attachments)
+                        }
+                    }
+                    .padding()
                 }
             }
         }
     }
 
-    private func photoCell(index: Int) -> some View {
-        let colors: [Color] = [
-            Color(red: 0.85, green: 0.65, blue: 0.65),
-            Color(red: 0.85, green: 0.78, blue: 0.65),
-            Color(red: 0.85, green: 0.85, blue: 0.65),
-            Color(red: 0.65, green: 0.85, blue: 0.65),
-            Color(red: 0.65, green: 0.85, blue: 0.78),
-            Color(red: 0.65, green: 0.78, blue: 0.85),
-            Color(red: 0.78, green: 0.65, blue: 0.85)
-        ]
-        let color = colors[index % colors.count]
-        let isSelected = selectedPhotos.contains(index)
-
-        return Button {
-            if isSelected {
-                selectedPhotos.remove(index)
-            } else {
-                selectedPhotos.insert(index)
+    private func attachmentGroup(task: DONEOTask?, attachments: [ProjectAttachment]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Group header
+            HStack {
+                Image(systemName: task != nil ? "checklist" : "paperclip")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.primary)
+                Text(task?.title ?? "Unlinked")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("(\(attachments.count))")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Spacer()
             }
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Rectangle()
-                    .fill(color)
-                    .frame(height: 120)
 
-                // Selection circle
-                Circle()
-                    .stroke(Color.white, lineWidth: 2)
-                    .frame(width: 24, height: 24)
-                    .background(
-                        Circle()
-                            .fill(isSelected ? Theme.primary : Color.clear)
-                    )
+            // Attachments grid
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 4),
+                GridItem(.flexible(), spacing: 4),
+                GridItem(.flexible(), spacing: 4),
+                GridItem(.flexible(), spacing: 4)
+            ], spacing: 4) {
+                ForEach(attachments) { attachment in
+                    attachmentThumbnail(attachment)
+                }
+            }
+        }
+    }
+
+    private func attachmentThumbnail(_ attachment: ProjectAttachment) -> some View {
+        ZStack {
+            if attachment.type == .image {
+                // Image placeholder
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Theme.primaryLight)
+                    .aspectRatio(1, contentMode: .fit)
                     .overlay {
-                        if isSelected {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white)
+                        Image(systemName: "photo")
+                            .foregroundStyle(Theme.primary)
+                    }
+            } else {
+                // Document
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        VStack(spacing: 4) {
+                            Image(systemName: attachment.iconName)
+                                .font(.system(size: 20))
+                                .foregroundStyle(Theme.primary)
+                            Text(attachment.fileName)
+                                .font(.system(size: 8))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .padding(4)
+                    }
+            }
+        }
+    }
+
+    // MARK: - Photos Content
+
+    private var photosContent: some View {
+        VStack(spacing: 0) {
+            // Selected photos preview
+            if !loadedImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(loadedImages.indices, id: \.self) { index in
+                            Image(uiImage: loadedImages[index])
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(alignment: .topTrailing) {
+                                    Button {
+                                        loadedImages.remove(at: index)
+                                        if index < selectedPhotoItems.count {
+                                            selectedPhotoItems.remove(at: index)
+                                        }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 20))
+                                            .foregroundStyle(.white)
+                                            .shadow(radius: 2)
+                                    }
+                                    .padding(4)
+                                }
                         }
                     }
-                    .padding(8)
+                    .padding()
+                }
+                .background(Color(uiColor: .secondarySystemBackground))
+            }
+
+            // PhotosPicker
+            PhotosPicker(
+                selection: $selectedPhotoItems,
+                maxSelectionCount: 10,
+                matching: .images,
+                photoLibrary: .shared()
+            ) {
+                VStack(spacing: 16) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.system(size: 48))
+                        .foregroundStyle(Theme.primary.opacity(0.6))
+
+                    Text("Select Photos")
+                        .font(.system(size: 18, weight: .semibold))
+
+                    Text("Choose photos from your library")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "photo.stack")
+                            .font(.system(size: 16))
+                        Text(selectedPhotoItems.isEmpty ? "Tap to select" : "\(selectedPhotoItems.count) selected")
+                            .font(.system(size: 15, weight: .medium))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Theme.primary)
+                    .clipShape(Capsule())
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .onChange(of: selectedPhotoItems) { _, newItems in
+                loadImages(from: newItems)
+            }
+        }
+    }
+
+    private func loadImages(from items: [PhotosPickerItem]) {
+        loadedImages = []
+        for item in items {
+            item.loadTransferable(type: Data.self) { result in
+                switch result {
+                case .success(let data):
+                    if let data = data, let image = UIImage(data: data) {
+                        DispatchQueue.main.async {
+                            if !loadedImages.contains(where: { $0.pngData() == image.pngData() }) {
+                                loadedImages.append(image)
+                            }
+                        }
+                    }
+                case .failure:
+                    break
+                }
             }
         }
     }
@@ -791,7 +1145,7 @@ struct ProjectAttachmentSheet: View {
                     .multilineTextAlignment(.center)
 
                 Button {
-                    // Open file picker
+                    showingFilePicker = true
                 } label: {
                     Text("Choose File")
                         .font(.system(size: 15, weight: .semibold))
@@ -807,6 +1161,37 @@ struct ProjectAttachmentSheet: View {
             Spacer()
         }
         .padding()
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [.pdf, .text, .data, .spreadsheet, .presentation],
+            allowsMultipleSelection: true
+        ) { result in
+            switch result {
+            case .success(let urls):
+                // Add files to project
+                for url in urls {
+                    let accessing = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if accessing {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+
+                    let fileName = url.lastPathComponent
+                    let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+
+                    viewModel.addAttachment(
+                        type: .document,
+                        fileName: fileName,
+                        fileSize: fileSize,
+                        fileURL: url
+                    )
+                }
+                dismiss()
+            case .failure:
+                break
+            }
+        }
     }
 
     // MARK: - Contact Content
@@ -870,6 +1255,203 @@ struct ProjectAttachmentSheet: View {
         .background(Color(uiColor: .systemBackground))
         .overlay(alignment: .top) {
             Divider()
+        }
+    }
+}
+
+// MARK: - Attachment Upload Sheet (Link to Task)
+
+struct AttachmentUploadSheet: View {
+    @Bindable var viewModel: ProjectChatViewModel
+    let selectedImages: [UIImage]
+    let onComplete: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedTaskId: UUID? = nil
+    @State private var selectedSubtaskId: UUID? = nil
+    @State private var caption: String = ""
+
+    var selectedCount: Int { selectedImages.count }
+
+    private var selectedTask: DONEOTask? {
+        viewModel.project.tasks.first { $0.id == selectedTaskId }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Preview
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Selected")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(selectedImages.indices.prefix(6), id: \.self) { index in
+                                    Image(uiImage: selectedImages[index])
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 60, height: 60)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                if selectedCount > 6 {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(uiColor: .secondarySystemBackground))
+                                        .frame(width: 60, height: 60)
+                                        .overlay {
+                                            Text("+\(selectedCount - 6)")
+                                                .font(.system(size: 14, weight: .semibold))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                }
+                            }
+                        }
+                    }
+
+                    // Link to task (optional)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Link to task")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Text("(optional)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        // Task picker
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                // No link option
+                                Button {
+                                    selectedTaskId = nil
+                                    selectedSubtaskId = nil
+                                } label: {
+                                    Text("None")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(selectedTaskId == nil ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                        .foregroundStyle(selectedTaskId == nil ? .white : .primary)
+                                        .clipShape(Capsule())
+                                }
+
+                                ForEach(viewModel.project.tasks) { task in
+                                    Button {
+                                        selectedTaskId = task.id
+                                        selectedSubtaskId = nil
+                                    } label: {
+                                        Text(task.title)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .lineLimit(1)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(selectedTaskId == task.id ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                            .foregroundStyle(selectedTaskId == task.id ? .white : .primary)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Link to subtask (if task selected)
+                    if let task = selectedTask, !task.subtasks.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("Link to subtask")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                Text("(optional)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    Button {
+                                        selectedSubtaskId = nil
+                                    } label: {
+                                        Text("None")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(selectedSubtaskId == nil ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                            .foregroundStyle(selectedSubtaskId == nil ? .white : .primary)
+                                            .clipShape(Capsule())
+                                    }
+
+                                    ForEach(task.subtasks) { subtask in
+                                        Button {
+                                            selectedSubtaskId = subtask.id
+                                        } label: {
+                                            Text(subtask.title)
+                                                .font(.system(size: 14, weight: .medium))
+                                                .lineLimit(1)
+                                                .padding(.horizontal, 14)
+                                                .padding(.vertical, 8)
+                                                .background(selectedSubtaskId == subtask.id ? Theme.primary : Color(uiColor: .secondarySystemBackground))
+                                                .foregroundStyle(selectedSubtaskId == subtask.id ? .white : .primary)
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Caption
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Caption")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Text("(optional)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        TextField("Add a description...", text: $caption, axis: .vertical)
+                            .font(.system(size: 15))
+                            .lineLimit(2...4)
+                            .padding(14)
+                            .background(Color(uiColor: .secondarySystemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Add Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send") {
+                        // Create attachment items from images
+                        let items: [(type: AttachmentType, fileName: String, fileSize: Int64, fileURL: URL?)] = selectedImages.enumerated().map { index, _ in
+                            (type: .image, fileName: "Photo_\(Date().timeIntervalSince1970)_\(index).jpg", fileSize: 0, fileURL: nil)
+                        }
+
+                        viewModel.addAttachments(
+                            items: items,
+                            linkedTaskId: selectedTaskId,
+                            linkedSubtaskId: selectedSubtaskId,
+                            caption: caption.isEmpty ? nil : caption
+                        )
+
+                        dismiss()
+                        onComplete()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(selectedImages.isEmpty)
+                }
+            }
         }
     }
 }
