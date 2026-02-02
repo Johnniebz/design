@@ -1,0 +1,163 @@
+import Foundation
+
+struct DONEOTask: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var assignees: [User] // Multiple assignees
+    var status: TaskStatus
+    var dueDate: Date?
+    var createdAt: Date
+    var lastActivity: Date
+    var subtasks: [Subtask]
+    var attachments: [Attachment]
+    var notes: String? // Initial notes/description added when creating the task
+    var createdBy: User? // Who created the task
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        assignees: [User] = [],
+        status: TaskStatus = .pending,
+        dueDate: Date? = nil,
+        createdAt: Date = Date(),
+        lastActivity: Date? = nil,
+        subtasks: [Subtask] = [],
+        attachments: [Attachment] = [],
+        notes: String? = nil,
+        createdBy: User? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.assignees = assignees
+        self.status = status
+        self.dueDate = dueDate
+        self.createdAt = createdAt
+        self.lastActivity = lastActivity ?? createdAt
+        self.subtasks = subtasks
+        self.attachments = attachments
+        self.notes = notes
+        self.createdBy = createdBy
+    }
+
+    // Convenience for backward compatibility
+    var assignee: User? {
+        assignees.first
+    }
+
+    var isOverdue: Bool {
+        guard let dueDate = dueDate, status == .pending else { return false }
+        return dueDate < Calendar.current.startOfDay(for: Date())
+    }
+
+    var isDueToday: Bool {
+        guard let dueDate = dueDate else { return false }
+        return Calendar.current.isDateInToday(dueDate)
+    }
+
+    var isDueTomorrow: Bool {
+        guard let dueDate = dueDate else { return false }
+        return Calendar.current.isDateInTomorrow(dueDate)
+    }
+}
+
+enum TaskStatus: String, CaseIterable {
+    case pending = "Pending"
+    case done = "Done"
+}
+
+struct Subtask: Identifiable, Hashable {
+    let id: UUID
+    var title: String
+    var description: String? // Instructions/details for this subtask
+    var isDone: Bool
+    var assignees: [User] // Multiple assignees
+    var createdBy: User?
+    var createdAt: Date
+
+    init(id: UUID = UUID(), title: String, description: String? = nil, isDone: Bool = false, assignees: [User] = [], createdBy: User? = nil, createdAt: Date = Date()) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.isDone = isDone
+        self.assignees = assignees
+        self.createdBy = createdBy
+        self.createdAt = createdAt
+    }
+
+    // Convenience for backward compatibility
+    var assignee: User? {
+        assignees.first
+    }
+}
+
+// MARK: - Attachment
+
+enum AttachmentType: String, Hashable {
+    case image
+    case document
+    case video
+}
+
+struct Attachment: Identifiable, Hashable {
+    let id: UUID
+    let type: AttachmentType
+    let fileName: String
+    let fileSize: Int64 // bytes
+    let uploadedBy: User
+    let uploadedAt: Date
+    let thumbnailURL: URL? // For images/videos
+    let fileURL: URL?
+    let linkedSubtaskId: UUID? // Optional link to a specific subtask
+
+    init(
+        id: UUID = UUID(),
+        type: AttachmentType,
+        fileName: String,
+        fileSize: Int64 = 0,
+        uploadedBy: User,
+        uploadedAt: Date = Date(),
+        thumbnailURL: URL? = nil,
+        fileURL: URL? = nil,
+        linkedSubtaskId: UUID? = nil
+    ) {
+        self.id = id
+        self.type = type
+        self.fileName = fileName
+        self.fileSize = fileSize
+        self.uploadedBy = uploadedBy
+        self.uploadedAt = uploadedAt
+        self.thumbnailURL = thumbnailURL
+        self.fileURL = fileURL
+        self.linkedSubtaskId = linkedSubtaskId
+    }
+
+    var fileSizeFormatted: String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: fileSize)
+    }
+
+    var fileExtension: String {
+        (fileName as NSString).pathExtension.lowercased()
+    }
+
+    var iconName: String {
+        switch type {
+        case .image:
+            return "photo.fill"
+        case .video:
+            return "video.fill"
+        case .document:
+            switch fileExtension {
+            case "pdf":
+                return "doc.fill"
+            case "doc", "docx":
+                return "doc.text.fill"
+            case "xls", "xlsx":
+                return "tablecells.fill"
+            default:
+                return "paperclip"
+            }
+        }
+    }
+}
