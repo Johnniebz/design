@@ -12,6 +12,7 @@ struct DONEOTask: Identifiable, Hashable {
     var attachments: [Attachment]
     var notes: String? // Initial notes/description added when creating the task
     var createdBy: User? // Who created the task
+    var acknowledgedBy: Set<UUID> // User IDs who have accepted this task assignment
 
     init(
         id: UUID = UUID(),
@@ -24,7 +25,8 @@ struct DONEOTask: Identifiable, Hashable {
         subtasks: [Subtask] = [],
         attachments: [Attachment] = [],
         notes: String? = nil,
-        createdBy: User? = nil
+        createdBy: User? = nil,
+        acknowledgedBy: Set<UUID> = []
     ) {
         self.id = id
         self.title = title
@@ -37,6 +39,17 @@ struct DONEOTask: Identifiable, Hashable {
         self.attachments = attachments
         self.notes = notes
         self.createdBy = createdBy
+        self.acknowledgedBy = acknowledgedBy
+    }
+
+    // Check if a specific user has acknowledged this task
+    func isAcknowledged(by userId: UUID) -> Bool {
+        acknowledgedBy.contains(userId)
+    }
+
+    // Check if task is new (unacknowledged) for a specific user
+    func isNew(for userId: UUID) -> Bool {
+        assignees.contains { $0.id == userId } && !acknowledgedBy.contains(userId)
     }
 
     // Convenience for backward compatibility

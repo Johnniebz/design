@@ -17,7 +17,7 @@ struct MainTabView: View {
             .tag(0)
 
             NavigationStack {
-                ActivityTimelineView()
+                ActivityView()
             }
             .tabItem {
                 Image(systemName: "bell.fill")
@@ -42,103 +42,6 @@ struct MainTabView: View {
                 Text("Settings")
             }
             .tag(3)
-        }
-    }
-}
-
-// MARK: - Activity Timeline View
-
-struct ActivityTimelineView: View {
-    private var dataService = MockDataService.shared
-
-    var body: some View {
-        let _ = dataService.currentUser
-        List {
-            ForEach(dataService.activitiesForCurrentUser) { activity in
-                ActivityRow(activity: activity)
-            }
-        }
-        .listStyle(.plain)
-        .navigationTitle("Activity")
-        .onAppear {
-            dataService.loadMockActivities()
-        }
-        .overlay {
-            if dataService.activitiesForCurrentUser.isEmpty {
-                ContentUnavailableView(
-                    "No Activity Yet",
-                    systemImage: "bell",
-                    description: Text("Updates from your projects will appear here")
-                )
-            }
-        }
-    }
-}
-
-struct ActivityRow: View {
-    let activity: Activity
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            Image(systemName: activity.icon)
-                .font(.system(size: 20))
-                .foregroundStyle(iconColor)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 4) {
-                // Description
-                Text(activity.description)
-                    .font(.system(size: 15))
-                    .lineLimit(2)
-
-                // Project name + time
-                HStack(spacing: 6) {
-                    Text(activity.projectName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.primary)
-
-                    Text("•")
-                        .foregroundStyle(.tertiary)
-
-                    Text(formatTime(activity.timestamp))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                }
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 6)
-    }
-
-    private var iconColor: Color {
-        switch activity.iconColor {
-        case "blue": return Theme.primary
-        case "green": return .green
-        case "orange": return .orange
-        case "purple": return Theme.primary
-        default: return .secondary
-        }
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents([.minute, .hour, .day], from: date, to: now)
-
-        if let days = components.day, days > 0 {
-            if days == 1 {
-                return "Yesterday"
-            } else {
-                return date.formatted(.dateTime.month(.abbreviated).day())
-            }
-        } else if let hours = components.hour, hours > 0 {
-            return "\(hours)h ago"
-        } else if let minutes = components.minute, minutes > 0 {
-            return "\(minutes)m ago"
-        } else {
-            return "Just now"
         }
     }
 }

@@ -36,6 +36,7 @@
 		E81000012B5A0000000001F /* TaskDrawerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A0000000001F /* TaskDrawerSheet.swift */; };
 		E81000012B5A00000000020 /* TaskDrawerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000020 /* TaskDrawerDetailView.swift */; };
 		E81000012B5A00000000021 /* ProjectChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000021 /* ProjectChatViewModel.swift */; };
+		E81000012B5A00000000022 /* ActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81000002B5A00000000022 /* ActivityView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +70,7 @@
 		E81000002B5A0000000001F /* TaskDrawerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerSheet.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000020 /* TaskDrawerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDrawerDetailView.swift; sourceTree = "<group>"; };
 		E81000002B5A00000000021 /* ProjectChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectChatViewModel.swift; sourceTree = "<group>"; };
+		E81000002B5A00000000022 /* ActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +129,7 @@
 				E81000002B5A0000000000E /* GroupChatView.swift */,
 				E81000002B5A00000000012 /* SubtaskListView.swift */,
 				E81000002B5A00000000013 /* TaskChatView.swift */,
+				E81000002B5A00000000022 /* ActivityView.swift */,
 				E83000002B5A00000000008 /* Onboarding */,
 				E83000002B5A00000000009 /* Components */,
 			);
@@ -287,6 +290,7 @@
 				E81000012B5A0000000001A /* FirstProjectView.swift in Sources */,
 				E81000012B5A0000000001B /* DueDatePicker.swift in Sources */,
 				E81000012B5A0000000001C /* AssigneePicker.swift in Sources */,
+				E81000012B5A00000000022 /* ActivityView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

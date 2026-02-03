@@ -298,7 +298,8 @@ final class MockDataService {
             - Contractor license copy
 
             Inspector prefers morning appointments (8-10am)
-            """
+            """,
+            acknowledgedBy: [alex.id] // Alex has accepted this task
         )
         let task1_3 = DONEOTask(title: "Complete bathroom tiling", assignees: [james], status: .done)
         let task1_4 = DONEOTask(
@@ -347,7 +348,8 @@ final class MockDataService {
             Lockbox code: 1234
 
             Take photos of any issues found!
-            """
+            """,
+            acknowledgedBy: [alex.id] // Alex has accepted this task
         )
         let task2_2 = DONEOTask(title: "Fix garage door", assignees: [sarah], status: .done)
 
@@ -378,7 +380,9 @@ final class MockDataService {
             Total: $12,450 (includes installation)
 
             Requires 50% deposit to order
-            """
+            """,
+            createdBy: mike,
+            acknowledgedBy: [maria.id] // Maria accepted, but Alex hasn't yet - NEW for Alex
         )
         let task3_3 = DONEOTask(
             title: "Coordinate with city inspector",
@@ -396,7 +400,8 @@ final class MockDataService {
             5. Final inspection
 
             Inspector assigned: Carlos Mendez
-            """
+            """,
+            createdBy: maria // Maria assigned this to Alex - NEW task needing acknowledgment
         )
         let task3_4 = DONEOTask(title: "Complete foundation work", assignees: [mike], status: .done)
         let task3_5 = DONEOTask(title: "Install plumbing rough-in", assignees: [], status: .pending, dueDate: tomorrow)
@@ -404,7 +409,7 @@ final class MockDataService {
         let task4_1 = DONEOTask(title: "Service excavator", assignees: [james], status: .done)
         let task4_2 = DONEOTask(title: "Replace drill bits", assignees: [mike], status: .done)
 
-        let task5_1 = DONEOTask(title: "Send invoice", assignees: [alex], status: .pending, dueDate: yesterday)
+        let task5_1 = DONEOTask(title: "Send invoice", assignees: [alex], status: .pending, dueDate: yesterday, acknowledgedBy: [alex.id])
         let task5_2 = DONEOTask(title: "Schedule follow-up meeting", assignees: [sarah], status: .pending, dueDate: tomorrow)
 
         // Create mock attachments for projects
