@@ -87,8 +87,9 @@ struct Subtask: Identifiable, Hashable {
     var dueDate: Date?
     var createdBy: User?
     var createdAt: Date
+    var attachments: [Attachment] // Support documents and deliverables
 
-    init(id: UUID = UUID(), title: String, description: String? = nil, isDone: Bool = false, assignees: [User] = [], dueDate: Date? = nil, createdBy: User? = nil, createdAt: Date = Date()) {
+    init(id: UUID = UUID(), title: String, description: String? = nil, isDone: Bool = false, assignees: [User] = [], dueDate: Date? = nil, createdBy: User? = nil, createdAt: Date = Date(), attachments: [Attachment] = []) {
         self.id = id
         self.title = title
         self.description = description
@@ -97,6 +98,7 @@ struct Subtask: Identifiable, Hashable {
         self.dueDate = dueDate
         self.createdBy = createdBy
         self.createdAt = createdAt
+        self.attachments = attachments
     }
 
     // Convenience for backward compatibility
@@ -107,6 +109,16 @@ struct Subtask: Identifiable, Hashable {
     var isOverdue: Bool {
         guard let dueDate = dueDate, !isDone else { return false }
         return dueDate < Calendar.current.startOfDay(for: Date())
+    }
+
+    // Instruction attachments (from creator)
+    var instructionAttachments: [Attachment] {
+        attachments.filter { $0.isInstruction }
+    }
+
+    // Deliverable attachments (from team)
+    var deliverableAttachments: [Attachment] {
+        attachments.filter { $0.isDeliverable }
     }
 }
 
@@ -167,6 +179,16 @@ struct Attachment: Identifiable, Hashable {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: fileSize)
+    }
+
+    /// True if this is an instruction/reference attachment (from task creator)
+    var isInstruction: Bool {
+        category == .reference
+    }
+
+    /// True if this is a deliverable/work attachment (from team members)
+    var isDeliverable: Bool {
+        category == .work
     }
 
     var fileExtension: String {

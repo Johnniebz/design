@@ -5,7 +5,7 @@ struct TaskDrawerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: ProjectChatViewModel
     @State private var showingAddTask = false
-    @State private var showingTaskDetail = false
+    @State private var expandedTaskIds: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
@@ -73,14 +73,7 @@ struct TaskDrawerSheet: View {
             if !viewModel.pendingTasks.isEmpty {
                 Section {
                     ForEach(viewModel.pendingTasks) { task in
-                        TaskDrawerRow(
-                            task: task,
-                            viewModel: viewModel,
-                            onQuote: {
-                                viewModel.quoteTask(task)
-                                dismiss()
-                            }
-                        )
+                        taskRowsForTask(task)
                     }
                 } header: {
                     Text("Pending (\(viewModel.pendingTasks.count))")
@@ -91,14 +84,7 @@ struct TaskDrawerSheet: View {
             if !viewModel.completedTasks.isEmpty {
                 Section {
                     ForEach(viewModel.completedTasks) { task in
-                        TaskDrawerRow(
-                            task: task,
-                            viewModel: viewModel,
-                            onQuote: {
-                                viewModel.quoteTask(task)
-                                dismiss()
-                            }
-                        )
+                        taskRowsForTask(task)
                     }
                 } header: {
                     Text("Completed (\(viewModel.completedTasks.count))")
@@ -106,6 +92,73 @@ struct TaskDrawerSheet: View {
             }
         }
         .listStyle(.insetGrouped)
+    }
+
+    // Generate task row + subtask rows (flat structure for swipe to work)
+    @ViewBuilder
+    private func taskRowsForTask(_ task: DONEOTask) -> some View {
+        let isExpanded = expandedTaskIds.contains(task.id)
+        let sortedSubtasks = task.subtasks.sorted { !$0.isDone && $1.isDone }
+
+        // Main task row
+        TaskRowView(
+            task: task,
+            viewModel: viewModel,
+            isExpanded: isExpanded,
+            onExpand: {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    if expandedTaskIds.contains(task.id) {
+                        expandedTaskIds.remove(task.id)
+                    } else {
+                        expandedTaskIds.insert(task.id)
+                    }
+                }
+            }
+        )
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                viewModel.deleteTask(task)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+
+            Button {
+                viewModel.quoteTask(task)
+                dismiss()
+            } label: {
+                Label("Comment", systemImage: "text.bubble")
+            }
+            .tint(Theme.primary)
+        }
+
+        // Subtask rows (when expanded) - as separate List items
+        if isExpanded {
+            ForEach(sortedSubtasks) { subtask in
+                SubtaskRowView(
+                    subtask: subtask,
+                    task: task,
+                    viewModel: viewModel
+                )
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        viewModel.deleteSubtask(from: task, subtask: subtask)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+
+                    Button {
+                        viewModel.quoteSubtask(task, subtask: subtask)
+                        dismiss()
+                    } label: {
+                        Label("Comment", systemImage: "text.bubble")
+                    }
+                    .tint(Theme.primary)
+                }
+            }
+
+            // Add subtask row
+            AddSubtaskRowView(task: task, viewModel: viewModel)
+        }
     }
 
     // MARK: - Add Task Button
@@ -130,14 +183,15 @@ struct TaskDrawerSheet: View {
     }
 }
 
-// MARK: - Task Drawer Row
+// MARK: - Task Row View (direct List item)
 
-struct TaskDrawerRow: View {
+struct TaskRowView: View {
     let task: DONEOTask
     @Bindable var viewModel: ProjectChatViewModel
-    let onQuote: () -> Void
+    var isExpanded: Bool
+    let onExpand: () -> Void
 
-    @State private var showingDetail = false
+    @State private var showingTaskInfo = false
 
     private var progress: (completed: Int, total: Int) {
         viewModel.subtaskProgress(for: task)
@@ -155,111 +209,102 @@ struct TaskDrawerRow: View {
             }
             .buttonStyle(.plain)
 
-            // Task info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(task.title)
-                    .font(.system(size: 16))
-                    .strikethrough(task.status == .done)
-                    .foregroundStyle(task.status == .done ? .secondary : .primary)
-                    .lineLimit(2)
+            // Task info - tappable for editing
+            Button {
+                showingTaskInfo = true
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(task.title)
+                        .font(.system(size: 16))
+                        .strikethrough(task.status == .done)
+                        .foregroundStyle(task.status == .done ? .secondary : .primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
 
-                HStack(spacing: 8) {
-                    // Assignees
-                    if !task.assignees.isEmpty {
-                        HStack(spacing: -6) {
-                            ForEach(task.assignees.prefix(3)) { assignee in
-                                Circle()
-                                    .fill(Theme.primaryLight)
-                                    .frame(width: 20, height: 20)
-                                    .overlay {
-                                        Text(assignee.avatarInitials)
-                                            .font(.system(size: 8, weight: .medium))
-                                            .foregroundStyle(Theme.primary)
-                                    }
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color(uiColor: .systemBackground), lineWidth: 1)
-                                    )
+                    HStack(spacing: 8) {
+                        // Assignees
+                        if !task.assignees.isEmpty {
+                            HStack(spacing: -6) {
+                                ForEach(task.assignees.prefix(3)) { assignee in
+                                    Circle()
+                                        .fill(Theme.primaryLight)
+                                        .frame(width: 20, height: 20)
+                                        .overlay {
+                                            Text(assignee.avatarInitials)
+                                                .font(.system(size: 8, weight: .medium))
+                                                .foregroundStyle(Theme.primary)
+                                        }
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color(uiColor: .systemBackground), lineWidth: 1)
+                                        )
+                                }
                             }
-                        }
 
-                        let names = task.assignees.prefix(2).map { $0.displayFirstName }
-                        let displayText = task.assignees.count > 2
-                            ? "\(names.joined(separator: ", ")) +\(task.assignees.count - 2)"
-                            : names.joined(separator: ", ")
-                        Text(displayText)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Subtask progress
-                    if progress.total > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checklist")
-                                .font(.system(size: 10))
-                            Text("\(progress.completed)/\(progress.total)")
+                            let names = task.assignees.prefix(2).map { $0.displayFirstName }
+                            let displayText = task.assignees.count > 2
+                                ? "\(names.joined(separator: ", ")) +\(task.assignees.count - 2)"
+                                : names.joined(separator: ", ")
+                            Text(displayText)
                                 .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
                         }
-                        .foregroundStyle(progress.completed == progress.total ? .green : .secondary)
-                    }
 
-                    // Attachments indicator
-                    let attachmentCount = viewModel.project.attachments(for: task.id).count
-                    if attachmentCount > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "paperclip")
-                                .font(.system(size: 10))
-                            Text("\(attachmentCount)")
-                                .font(.system(size: 12))
+                        // Subtask progress
+                        if progress.total > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checklist")
+                                    .font(.system(size: 10))
+                                Text("\(progress.completed)/\(progress.total)")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(progress.completed == progress.total ? .green : .secondary)
                         }
-                        .foregroundStyle(.secondary)
-                    }
 
-                    // Due date
-                    if let dueDate = task.dueDate {
-                        HStack(spacing: 2) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 10))
-                            Text(formatDueDate(dueDate))
-                                .font(.system(size: 12))
+                        // Due date
+                        if let dueDate = task.dueDate {
+                            HStack(spacing: 2) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 10))
+                                Text(formatDueDate(dueDate))
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(task.isOverdue ? .red : .secondary)
                         }
-                        .foregroundStyle(task.isOverdue ? .red : .secondary)
+
+                        // Support documents indicator
+                        let instructionCount = task.attachments.filter { $0.isInstruction }.count
+                        if instructionCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: 10))
+                                Text("\(instructionCount)")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(Theme.primary)
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
 
-            Spacer()
-
-            // Chevron to drill into subtasks
-            if !task.subtasks.isEmpty || true {  // Always show chevron for now
+            // Expand/collapse chevron (only if has subtasks)
+            if !task.subtasks.isEmpty {
                 Button {
-                    viewModel.selectedTask = task
-                    showingDetail = true
+                    onExpand()
                 } label: {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.tertiary)
+                        .frame(width: 24, height: 24)
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                viewModel.deleteTask(task)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-
-            Button {
-                onQuote()
-            } label: {
-                Label("Quote", systemImage: "quote.bubble")
-            }
-            .tint(Theme.primary)
-        }
-        .sheet(isPresented: $showingDetail) {
-            TaskDrawerDetailView(task: task, viewModel: viewModel)
+        .sheet(isPresented: $showingTaskInfo) {
+            TaskInfoSheet(task: task, viewModel: viewModel)
         }
     }
 
@@ -269,10 +314,151 @@ struct TaskDrawerRow: View {
             return "Today"
         } else if calendar.isDateInTomorrow(date) {
             return "Tomorrow"
-        } else if calendar.isDateInYesterday(date) {
-            return "Yesterday"
         } else {
             return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Subtask Row View (direct List item with indentation)
+
+struct SubtaskRowView: View {
+    let subtask: Subtask
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+
+    @State private var showingDetail = false
+
+    private var canToggle: Bool {
+        viewModel.canToggleSubtask(subtask)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Indentation spacer
+            Color.clear.frame(width: 20)
+
+            // Checkbox
+            Button {
+                if canToggle {
+                    viewModel.toggleSubtaskStatus(task, subtask)
+                }
+            } label: {
+                Image(systemName: subtask.isDone ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(subtask.isDone ? .green : (canToggle ? .secondary : .secondary.opacity(0.3)))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canToggle)
+
+            // Subtask info - tappable for details
+            Button {
+                showingDetail = true
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(subtask.title)
+                        .font(.system(size: 14))
+                        .strikethrough(subtask.isDone)
+                        .foregroundStyle(subtask.isDone ? .secondary : .primary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+
+                    // Info row
+                    HStack(spacing: 6) {
+                        // Assignees
+                        if !subtask.assignees.isEmpty {
+                            HStack(spacing: -4) {
+                                ForEach(subtask.assignees.prefix(2)) { assignee in
+                                    Circle()
+                                        .fill(Theme.primaryLight)
+                                        .frame(width: 16, height: 16)
+                                        .overlay {
+                                            Text(assignee.avatarInitials)
+                                                .font(.system(size: 6, weight: .medium))
+                                                .foregroundStyle(Theme.primary)
+                                        }
+                                }
+                            }
+                        }
+
+                        // Support documents indicator
+                        if !subtask.instructionAttachments.isEmpty {
+                            HStack(spacing: 2) {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: 9))
+                                Text("\(subtask.instructionAttachments.count)")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundStyle(Theme.primary)
+                        }
+
+                        // Due date
+                        if let dueDate = subtask.dueDate {
+                            HStack(spacing: 2) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 9))
+                                Text(formatDueDate(dueDate))
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundStyle(subtask.isOverdue ? .red : .secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 2)
+        .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
+        .sheet(isPresented: $showingDetail) {
+            SubtaskInfoSheet(subtask: subtask, task: task, viewModel: viewModel)
+        }
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Add Subtask Row View
+
+struct AddSubtaskRowView: View {
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+
+    @State private var showingAddSubtask = false
+
+    var body: some View {
+        Button {
+            showingAddSubtask = true
+        } label: {
+            HStack(spacing: 10) {
+                // Indentation spacer
+                Color.clear.frame(width: 20)
+
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.primary)
+
+                Text("Add subtask")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 4)
+        .listRowBackground(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
+        .sheet(isPresented: $showingAddSubtask) {
+            AddSubtaskSheet(task: task, viewModel: viewModel)
         }
     }
 }

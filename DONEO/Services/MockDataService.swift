@@ -300,8 +300,25 @@ final class MockDataService {
             status: .pending,
             dueDate: today,
             subtasks: [
-                Subtask(title: "Get quotes from 3 suppliers", isDone: true, assignees: [maria], createdBy: james),
-                Subtask(title: "Compare prices and quality", isDone: true, assignees: [maria, james], createdBy: james),
+                Subtask(
+                    title: "Get quotes from 3 suppliers",
+                    isDone: true,
+                    assignees: [maria],
+                    createdBy: james,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Supplier_List.pdf", fileSize: 125_000, uploadedBy: james),
+                        Attachment(type: .document, category: .reference, fileName: "Budget_Guidelines.xlsx", fileSize: 89_000, uploadedBy: james)
+                    ]
+                ),
+                Subtask(
+                    title: "Compare prices and quality",
+                    isDone: true,
+                    assignees: [maria, james],
+                    createdBy: james,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Comparison_Template.xlsx", fileSize: 67_000, uploadedBy: james)
+                    ]
+                ),
                 Subtask(title: "Place order with selected vendor", isDone: false, assignees: [maria], createdBy: james),
                 Subtask(title: "Confirm delivery date", isDone: false, createdBy: james)
             ],
@@ -386,10 +403,40 @@ final class MockDataService {
             status: .pending,
             dueDate: nextWeek,
             subtasks: [
-                Subtask(title: "Measure all window frames", isDone: false, assignees: [james], createdBy: james),
-                Subtask(title: "Order custom windows", isDone: false, assignees: [maria, alex], createdBy: james),
+                Subtask(
+                    title: "Measure all window frames",
+                    isDone: false,
+                    assignees: [james],
+                    dueDate: today,
+                    createdBy: james,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Measurement_Guide.pdf", fileSize: 245_000, uploadedBy: james),
+                        Attachment(type: .image, category: .reference, fileName: "Window_Diagram.jpg", fileSize: 890_000, uploadedBy: james)
+                    ]
+                ),
+                Subtask(
+                    title: "Order custom windows",
+                    isDone: false,
+                    assignees: [maria, alex],
+                    dueDate: tomorrow,
+                    createdBy: james,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Window_Catalog.pdf", fileSize: 3_200_000, uploadedBy: james),
+                        Attachment(type: .document, category: .reference, fileName: "Order_Form.pdf", fileSize: 156_000, uploadedBy: james)
+                    ]
+                ),
                 Subtask(title: "Remove old windows", isDone: false, createdBy: james),
-                Subtask(title: "Install new windows", isDone: false, createdBy: james),
+                Subtask(
+                    title: "Install new windows",
+                    isDone: false,
+                    dueDate: nextWeek,
+                    createdBy: james,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Installation_Manual.pdf", fileSize: 1_800_000, uploadedBy: james),
+                        Attachment(type: .image, category: .reference, fileName: "Installation_Steps.jpg", fileSize: 1_200_000, uploadedBy: james),
+                        Attachment(type: .image, category: .reference, fileName: "Safety_Requirements.jpg", fileSize: 780_000, uploadedBy: james)
+                    ]
+                ),
                 Subtask(title: "Seal and insulate", isDone: false, createdBy: james)
             ],
             attachments: [
@@ -539,10 +586,102 @@ final class MockDataService {
             status: .pending,
             dueDate: today,
             subtasks: [
-                Subtask(title: "Review structural plans", isDone: true, assignees: [mike], createdBy: alex),
-                Subtask(title: "Check electrical layout", isDone: false, assignees: [alex, mike], createdBy: alex),
-                Subtask(title: "Verify plumbing routes", isDone: false, assignees: [maria], createdBy: alex)
+                Subtask(
+                    title: "Review structural plans",
+                    isDone: true,
+                    assignees: [mike],
+                    createdBy: alex,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Structural_Plans_v2.pdf", fileSize: 4_500_000, uploadedBy: alex),
+                        Attachment(type: .document, category: .reference, fileName: "Load_Calculations.xlsx", fileSize: 890_000, uploadedBy: alex)
+                    ]
+                ),
+                Subtask(
+                    title: "Check electrical layout",
+                    isDone: false,
+                    assignees: [alex, mike],
+                    dueDate: tomorrow,
+                    createdBy: alex,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Electrical_Layout_v3.pdf", fileSize: 2_100_000, uploadedBy: alex),
+                        Attachment(type: .image, category: .reference, fileName: "Panel_Location.jpg", fileSize: 1_500_000, uploadedBy: alex),
+                        Attachment(type: .document, category: .reference, fileName: "Code_Requirements.pdf", fileSize: 345_000, uploadedBy: alex)
+                    ]
+                ),
+                Subtask(
+                    title: "Verify plumbing routes",
+                    isDone: false,
+                    assignees: [maria],
+                    dueDate: nextWeek,
+                    createdBy: alex,
+                    attachments: [
+                        Attachment(type: .document, category: .reference, fileName: "Plumbing_Schematic.pdf", fileSize: 1_800_000, uploadedBy: alex)
+                    ]
+                )
             ],
+            attachments: [
+                // Instruction attachments (from creator)
+                Attachment(
+                    type: .document,
+                    category: .reference,
+                    fileName: "Floor_Plan_v3.pdf",
+                    fileSize: 3_500_000,
+                    uploadedBy: alex
+                ),
+                Attachment(
+                    type: .document,
+                    category: .reference,
+                    fileName: "Electrical_Layout.pdf",
+                    fileSize: 1_200_000,
+                    uploadedBy: alex
+                ),
+                Attachment(
+                    type: .image,
+                    category: .reference,
+                    fileName: "Site_Overview.jpg",
+                    fileSize: 2_100_000,
+                    uploadedBy: alex
+                ),
+                // Deliverable attachments (from team)
+                Attachment(
+                    type: .image,
+                    category: .work,
+                    fileName: "Structural_Review_Photo1.jpg",
+                    fileSize: 1_800_000,
+                    uploadedBy: mike,
+                    caption: "Structural review complete"
+                ),
+                Attachment(
+                    type: .image,
+                    category: .work,
+                    fileName: "Structural_Review_Photo2.jpg",
+                    fileSize: 2_100_000,
+                    uploadedBy: mike
+                ),
+                Attachment(
+                    type: .document,
+                    category: .work,
+                    fileName: "Review_Notes.pdf",
+                    fileSize: 245_000,
+                    uploadedBy: mike,
+                    caption: "My review notes and findings"
+                ),
+                Attachment(
+                    type: .contact,
+                    category: .work,
+                    fileName: "John_Architect.vcf",
+                    fileSize: 1_200,
+                    uploadedBy: maria,
+                    caption: "Project architect contact"
+                )
+            ],
+            notes: """
+            Review all blueprints for the new office building project.
+            Pay special attention to:
+            - Load-bearing walls on floors 2-4
+            - Emergency exit routes
+            - HVAC duct placement
+            """,
             createdBy: alex
         )
         let task3_2 = DONEOTask(

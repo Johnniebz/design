@@ -446,6 +446,16 @@ final class ProjectChatViewModel {
 
     func quoteMessage(_ message: Message) {
         quotedMessage = QuotedMessage(message: message)
+
+        // Inherit task/subtask context from the quoted message
+        // This creates continuity - replying to a message about a task
+        // means your reply is also about that task
+        if referencedTask == nil, let taskRef = message.referencedTask {
+            referencedTask = taskRef
+        }
+        if referencedSubtask == nil, let subtaskRef = message.referencedSubtask {
+            referencedSubtask = subtaskRef
+        }
     }
 
     func clearQuote() {
@@ -631,6 +641,182 @@ final class ProjectChatViewModel {
         // Update project's last activity
         project.lastActivity = Date()
         project.lastActivityPreview = "\(currentUser.displayFirstName) \(messageContent)"
+
+        MockDataService.shared.updateProject(project)
+    }
+
+    // MARK: - Task Deliverable Upload
+
+    /// Adds a deliverable attachment to a task AND posts it to the chat
+    func addDeliverableToTask(
+        _ task: DONEOTask,
+        type: AttachmentType,
+        fileName: String,
+        fileSize: Int64 = 0,
+        thumbnailURL: URL? = nil,
+        fileURL: URL? = nil,
+        comment: String? = nil
+    ) {
+        guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }) else { return }
+
+        // Create the attachment as a deliverable (work category)
+        let attachment = Attachment(
+            type: type,
+            category: .work,
+            fileName: fileName,
+            fileSize: fileSize,
+            uploadedBy: currentUser,
+            thumbnailURL: thumbnailURL,
+            fileURL: fileURL,
+            caption: comment
+        )
+
+        // Add to task's attachments
+        project.tasks[taskIndex].attachments.append(attachment)
+
+        // Also add to project attachments for the media gallery
+        let projectAttachment = ProjectAttachment(
+            type: type,
+            fileName: fileName,
+            fileSize: fileSize,
+            uploadedBy: currentUser,
+            thumbnailURL: thumbnailURL,
+            fileURL: fileURL,
+            linkedTaskId: task.id,
+            caption: comment
+        )
+        project.attachments.append(projectAttachment)
+
+        // Create message content
+        let typeLabel: String
+        switch type {
+        case .image: typeLabel = "a photo"
+        case .document: typeLabel = "a document"
+        case .video: typeLabel = "a video"
+        case .contact: typeLabel = "a contact"
+        }
+
+        var messageContent = "uploaded \(typeLabel)"
+        if let comment = comment, !comment.isEmpty {
+            messageContent += ": \(comment)"
+        }
+
+        // Create message attachment for display
+        let messageAttachment = MessageAttachment(
+            type: type,
+            fileName: fileName,
+            fileSize: fileSize,
+            thumbnailURL: thumbnailURL,
+            fileURL: fileURL
+        )
+
+        // Post to chat with task reference
+        let message = Message(
+            content: messageContent,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: TaskReference(task: task),
+            attachment: messageAttachment
+        )
+        project.messages.append(message)
+
+        // Update project's last activity
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName) uploaded \(typeLabel)"
+
+        // Update selectedTask if viewing this task
+        if selectedTask?.id == task.id {
+            selectedTask = project.tasks[taskIndex]
+        }
+
+        MockDataService.shared.updateProject(project)
+    }
+
+    /// Adds multiple deliverable attachments to a task AND posts to chat
+    func addDeliverablesToTask(
+        _ task: DONEOTask,
+        items: [(type: AttachmentType, fileName: String, fileSize: Int64, thumbnailURL: URL?, fileURL: URL?)],
+        comment: String? = nil
+    ) {
+        guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }) else { return }
+
+        for item in items {
+            // Create the attachment as a deliverable (work category)
+            let attachment = Attachment(
+                type: item.type,
+                category: .work,
+                fileName: item.fileName,
+                fileSize: item.fileSize,
+                uploadedBy: currentUser,
+                thumbnailURL: item.thumbnailURL,
+                fileURL: item.fileURL,
+                caption: comment
+            )
+
+            // Add to task's attachments
+            project.tasks[taskIndex].attachments.append(attachment)
+
+            // Also add to project attachments for the media gallery
+            let projectAttachment = ProjectAttachment(
+                type: item.type,
+                fileName: item.fileName,
+                fileSize: item.fileSize,
+                uploadedBy: currentUser,
+                thumbnailURL: item.thumbnailURL,
+                fileURL: item.fileURL,
+                linkedTaskId: task.id,
+                caption: comment
+            )
+            project.attachments.append(projectAttachment)
+        }
+
+        // Create message content
+        let count = items.count
+        let typeLabel: String
+        if items.allSatisfy({ $0.type == .image }) {
+            typeLabel = count == 1 ? "a photo" : "\(count) photos"
+        } else if items.allSatisfy({ $0.type == .document }) {
+            typeLabel = count == 1 ? "a document" : "\(count) documents"
+        } else if items.allSatisfy({ $0.type == .contact }) {
+            typeLabel = count == 1 ? "a contact" : "\(count) contacts"
+        } else {
+            typeLabel = count == 1 ? "a file" : "\(count) files"
+        }
+
+        var messageContent = "uploaded \(typeLabel)"
+        if let comment = comment, !comment.isEmpty {
+            messageContent += ": \(comment)"
+        }
+
+        // Create message attachment for the first item (for preview)
+        let messageAttachment: MessageAttachment? = items.first.map { item in
+            MessageAttachment(
+                type: item.type,
+                fileName: item.fileName,
+                fileSize: item.fileSize,
+                thumbnailURL: item.thumbnailURL,
+                fileURL: item.fileURL
+            )
+        }
+
+        // Post to chat with task reference
+        let message = Message(
+            content: messageContent,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: TaskReference(task: task),
+            attachment: messageAttachment
+        )
+        project.messages.append(message)
+
+        // Update project's last activity
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName) uploaded \(typeLabel)"
+
+        // Update selectedTask if viewing this task
+        if selectedTask?.id == task.id {
+            selectedTask = project.tasks[taskIndex]
+        }
 
         MockDataService.shared.updateProject(project)
     }
