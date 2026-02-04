@@ -8,6 +8,14 @@ enum MessageType: Hashable {
     case subtaskReopened(SubtaskReference)
 }
 
+// MARK: - Message Reaction
+
+struct MessageReaction: Hashable {
+    let emoji: String
+    let userId: UUID
+    let userName: String
+}
+
 struct Message: Identifiable, Hashable {
     let id: UUID
     let content: String
@@ -19,6 +27,8 @@ struct Message: Identifiable, Hashable {
     var quotedMessage: QuotedMessage?
     var attachment: MessageAttachment?
     var messageType: MessageType
+    var readBy: Set<UUID> // User IDs who have read this message
+    var reactions: [MessageReaction] // Emoji reactions
 
     init(
         id: UUID = UUID(),
@@ -30,7 +40,9 @@ struct Message: Identifiable, Hashable {
         referencedSubtask: SubtaskReference? = nil,
         quotedMessage: QuotedMessage? = nil,
         attachment: MessageAttachment? = nil,
-        messageType: MessageType = .regular
+        messageType: MessageType = .regular,
+        readBy: Set<UUID> = [],
+        reactions: [MessageReaction] = []
     ) {
         self.id = id
         self.content = content
@@ -42,6 +54,21 @@ struct Message: Identifiable, Hashable {
         self.quotedMessage = quotedMessage
         self.attachment = attachment
         self.messageType = messageType
+        // Sender has always "read" their own message
+        var readers = readBy
+        readers.insert(sender.id)
+        self.readBy = readers
+        self.reactions = reactions
+    }
+
+    // Check if a user has read this message
+    func isRead(by userId: UUID) -> Bool {
+        readBy.contains(userId)
+    }
+
+    // Group reactions by emoji
+    var groupedReactions: [String: [MessageReaction]] {
+        Dictionary(grouping: reactions, by: { $0.emoji })
     }
 }
 

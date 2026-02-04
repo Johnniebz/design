@@ -293,35 +293,49 @@ final class MockDataService {
             )
         ]
 
+        // Create subtasks with known IDs for message references
+        let subtask1_1_1 = Subtask(
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            title: "Get quotes from 3 suppliers",
+            isDone: true,
+            assignees: [maria],
+            createdBy: james,
+            attachments: [
+                Attachment(type: .document, category: .reference, fileName: "Supplier_List.pdf", fileSize: 125_000, uploadedBy: james),
+                Attachment(type: .document, category: .reference, fileName: "Budget_Guidelines.xlsx", fileSize: 89_000, uploadedBy: james)
+            ]
+        )
+        let subtask1_1_2 = Subtask(
+            id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            title: "Compare prices and quality",
+            isDone: true,
+            assignees: [maria, james],
+            createdBy: james,
+            attachments: [
+                Attachment(type: .document, category: .reference, fileName: "Comparison_Template.xlsx", fileSize: 67_000, uploadedBy: james)
+            ]
+        )
+        let subtask1_1_3 = Subtask(
+            id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+            title: "Place order with selected vendor",
+            isDone: false,
+            assignees: [maria],
+            createdBy: james
+        )
+        let subtask1_1_4 = Subtask(
+            id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
+            title: "Confirm delivery date",
+            isDone: false,
+            createdBy: james
+        )
+
         // Create tasks with known IDs for notification tracking
         let task1_1 = DONEOTask(
             title: "Order materials for kitchen",
             assignees: [maria],
             status: .pending,
             dueDate: today,
-            subtasks: [
-                Subtask(
-                    title: "Get quotes from 3 suppliers",
-                    isDone: true,
-                    assignees: [maria],
-                    createdBy: james,
-                    attachments: [
-                        Attachment(type: .document, category: .reference, fileName: "Supplier_List.pdf", fileSize: 125_000, uploadedBy: james),
-                        Attachment(type: .document, category: .reference, fileName: "Budget_Guidelines.xlsx", fileSize: 89_000, uploadedBy: james)
-                    ]
-                ),
-                Subtask(
-                    title: "Compare prices and quality",
-                    isDone: true,
-                    assignees: [maria, james],
-                    createdBy: james,
-                    attachments: [
-                        Attachment(type: .document, category: .reference, fileName: "Comparison_Template.xlsx", fileSize: 67_000, uploadedBy: james)
-                    ]
-                ),
-                Subtask(title: "Place order with selected vendor", isDone: false, assignees: [maria], createdBy: james),
-                Subtask(title: "Confirm delivery date", isDone: false, createdBy: james)
-            ],
+            subtasks: [subtask1_1_1, subtask1_1_2, subtask1_1_3, subtask1_1_4],
             attachments: [
                 Attachment(
                     type: .document,
@@ -955,12 +969,71 @@ final class MockDataService {
             )
         ]
 
+        // Task-specific messages for notifications demo (unread by alex)
+        let taskMessages1: [Message] = [
+            Message(
+                content: "I've measured all the window frames - most are standard sizes",
+                sender: james,
+                timestamp: Calendar.current.date(byAdding: .minute, value: -20, to: today) ?? today,
+                isFromCurrentUser: false,
+                referencedTask: TaskReference(taskId: task1_1.id, taskTitle: task1_1.title),
+                readBy: [james.id]
+            ),
+            Message(
+                content: "Found one window that needs custom sizing in the master bedroom",
+                sender: james,
+                timestamp: Calendar.current.date(byAdding: .minute, value: -15, to: today) ?? today,
+                isFromCurrentUser: false,
+                referencedTask: TaskReference(taskId: task1_1.id, taskTitle: task1_1.title),
+                readBy: [james.id]
+            ),
+            Message(
+                content: "Paint samples have arrived - I left them in the garage",
+                sender: maria,
+                timestamp: Calendar.current.date(byAdding: .minute, value: -10, to: today) ?? today,
+                isFromCurrentUser: false,
+                referencedTask: TaskReference(taskId: task1_4_paint.id, taskTitle: task1_4_paint.title),
+                readBy: [maria.id]
+            ),
+            // Subtask-specific messages (unread by alex)
+            Message(
+                content: "Got quotes from Home Depot, Lowes, and local supplier. Home Depot has best prices.",
+                sender: maria,
+                timestamp: Calendar.current.date(byAdding: .minute, value: -45, to: today) ?? today,
+                isFromCurrentUser: false,
+                referencedTask: TaskReference(taskId: task1_1.id, taskTitle: task1_1.title),
+                referencedSubtask: SubtaskReference(subtaskId: subtask1_1_1.id, subtaskTitle: subtask1_1_1.title),
+                readBy: [maria.id]
+            ),
+            Message(
+                content: "Uploaded the comparison spreadsheet - Lowes has faster delivery though",
+                sender: james,
+                timestamp: Calendar.current.date(byAdding: .minute, value: -40, to: today) ?? today,
+                isFromCurrentUser: false,
+                referencedTask: TaskReference(taskId: task1_1.id, taskTitle: task1_1.title),
+                referencedSubtask: SubtaskReference(subtaskId: subtask1_1_2.id, subtaskTitle: subtask1_1_2.title),
+                readBy: [james.id]
+            ),
+            Message(
+                content: "Ready to place the order - just need final approval on the budget",
+                sender: maria,
+                timestamp: Calendar.current.date(byAdding: .minute, value: -5, to: today) ?? today,
+                isFromCurrentUser: false,
+                referencedTask: TaskReference(taskId: task1_1.id, taskTitle: task1_1.title),
+                referencedSubtask: SubtaskReference(subtaskId: subtask1_1_3.id, subtaskTitle: subtask1_1_3.title),
+                readBy: [maria.id]
+            )
+        ]
+
+        // Combine base messages with task-specific messages
+        let allProject1Messages = project1Messages + taskMessages1
+
         return [
             Project(
                 name: "Downtown Renovation",
                 members: [alex, maria, james],
                 tasks: [task1_1, task1_2, task1_3, task1_4_paint, task1_5, task1_6, task1_7],
-                messages: project1Messages,
+                messages: allProject1Messages,
                 attachments: project1Attachments,
                 unreadTaskIds: [
                     alex.id: [task1_1.id, task1_3.id],

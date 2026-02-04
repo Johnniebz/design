@@ -5,8 +5,11 @@ struct ProjectChatView: View {
     @State private var viewModel: ProjectChatViewModel
     @State private var showingProjectInfo = false
     @State private var showingTaskDrawer = false
-    @State private var showingAttachmentOptions = false
     @State private var showingNewTasksInbox = false
+    @State private var selectedTaskForInfo: DONEOTask? = nil
+    @State private var selectedPendingTask: DONEOTask? = nil // For assignment screen
+    @State private var selectedSubtaskForInfo: (subtask: Subtask, task: DONEOTask)? = nil
+    @State private var showingAttachmentOptions = false
     @FocusState private var isInputFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -65,14 +68,39 @@ struct ProjectChatView: View {
         .sheet(isPresented: $showingProjectInfo) {
             ProjectInfoView(viewModel: viewModel)
         }
-        .sheet(isPresented: $showingAttachmentOptions) {
-            ProjectAttachmentSheet(viewModel: viewModel)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
         .sheet(isPresented: $showingNewTasksInbox) {
             ProjectNewTasksInboxSheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedTaskForInfo) { task in
+            TaskInfoSheet(task: task, viewModel: viewModel)
+        }
+        .sheet(item: $selectedPendingTask) { task in
+            NewTaskInboxDetailSheet(
+                task: task,
+                projectName: viewModel.project.name,
+                viewModel: viewModel,
+                onAccept: {
+                    viewModel.acceptTask(task, message: nil)
+                    selectedPendingTask = nil
+                },
+                onCancel: {
+                    selectedPendingTask = nil
+                }
+            )
+        }
+        .sheet(isPresented: Binding(
+            get: { selectedSubtaskForInfo != nil },
+            set: { if !$0 { selectedSubtaskForInfo = nil } }
+        )) {
+            if let info = selectedSubtaskForInfo {
+                SubtaskInfoSheet(subtask: info.subtask, task: info.task, viewModel: viewModel)
+            }
+        }
+        .sheet(isPresented: $showingAttachmentOptions) {
+            ChatAttachmentOptionsSheet(viewModel: viewModel)
+                .presentationDetents([.height(200)])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -110,19 +138,32 @@ struct ProjectChatView: View {
                             ProjectMessageBubble(
                                 message: message,
                                 onTaskTap: { taskRef in
-                                    // Open task drawer and navigate to task
+                                    // Check if task is pending assignment for current user
                                     if let task = viewModel.project.tasks.first(where: { $0.id == taskRef.taskId }) {
-                                        viewModel.selectedTask = task
-                                        showingTaskDrawer = true
+                                        if task.isNew(for: viewModel.currentUser.id) {
+                                            // Pending assignment → show assignment screen
+                                            selectedPendingTask = task
+                                        } else {
+                                            // Active task → show task info screen
+                                            selectedTaskForInfo = task
+                                        }
                                     }
                                 },
                                 onSubtaskTap: { subtaskRef in
-                                    viewModel.referencedSubtask = subtaskRef
-                                    isInputFocused = true
+                                    // Find the task and subtask, then open SubtaskInfoSheet
+                                    for task in viewModel.project.tasks {
+                                        if let subtask = task.subtasks.first(where: { $0.id == subtaskRef.subtaskId }) {
+                                            selectedSubtaskForInfo = (subtask, task)
+                                            break
+                                        }
+                                    }
                                 },
                                 onQuote: {
                                     viewModel.quoteMessage(message)
                                     isInputFocused = true
+                                },
+                                onReaction: { emoji in
+                                    viewModel.addReaction(emoji, to: message)
                                 }
                             )
                             .id(message.id)
@@ -152,7 +193,7 @@ struct ProjectChatView: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            Text("Start chatting with your team")
+            Text("Open a task to start a discussion")
                 .font(.system(size: 14))
                 .foregroundStyle(.tertiary)
 
@@ -181,34 +222,34 @@ struct ProjectChatView: View {
 
     private var referencePreview: some View {
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: 1.5)
                 .fill(Theme.primary)
-                .frame(width: 3)
+                .frame(width: 3, height: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 if let quoted = viewModel.quotedMessage {
                     Text("Replying to \(quoted.senderName)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.primary)
                     Text(quoted.content)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else if let subtaskRef = viewModel.referencedSubtask {
-                    Text("Referencing subtask")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text(subtaskRef.subtaskTitle)
-                        .font(.system(size: 13, weight: .medium))
+                    Text("Subtask")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Theme.primary)
+                    Text(subtaskRef.subtaskTitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else if let taskRef = viewModel.referencedTask {
-                    Text("Referencing task")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text(taskRef.taskTitle)
-                        .font(.system(size: 13, weight: .medium))
+                    Text("Task")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Theme.primary)
+                    Text(taskRef.taskTitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
@@ -219,72 +260,90 @@ struct ProjectChatView: View {
                 viewModel.clearAllReferences()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(Color(uiColor: .secondarySystemBackground))
     }
 
-    // MARK: - Input Toolbar
+    // MARK: - Input Toolbar (Reply-only in main chat)
 
     private var inputToolbar: some View {
-        HStack(spacing: 8) {
-            // Attachment button (+)
-            Button {
-                showingAttachmentOptions = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Theme.primary)
-            }
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                if viewModel.quotedMessage != nil {
+                    // REPLYING STATE: + button, text field, camera, mic
 
-            // Task button (checklist icon)
-            Button {
-                showingTaskDrawer = true
-            } label: {
-                Image(systemName: "checklist")
-                    .font(.system(size: 22))
-                    .foregroundStyle(showingTaskDrawer ? Theme.primary : .secondary)
-            }
+                    // Attachment button
+                    Button {
+                        showingAttachmentOptions = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Theme.primary)
+                    }
 
-            // Text field
-            TextField("Message", text: $viewModel.newMessageText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...4)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(uiColor: .secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                .focused($isInputFocused)
-                .submitLabel(.send)
-                .onSubmit {
-                    viewModel.sendMessage()
+                    // Text field for typing reply
+                    TextField("Reply...", text: $viewModel.newMessageText, axis: .vertical)
+                        .textFieldStyle(.plain)
+                        .lineLimit(1...4)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(uiColor: .secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .focused($isInputFocused)
+                        .submitLabel(.send)
+                        .onSubmit {
+                            viewModel.sendMessage()
+                        }
+
+                    // Camera button
+                    Button {
+                        // TODO: Open camera
+                    } label: {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Mic button
+                    Button {
+                        // TODO: Record audio
+                    } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    // DEFAULT STATE: Task icon + placeholder
+
+                    // Task button (checklist icon)
+                    Button {
+                        showingTaskDrawer = true
+                    } label: {
+                        Image(systemName: "checklist")
+                            .font(.system(size: 22))
+                            .foregroundStyle(Theme.primary)
+                    }
+
+                    // Placeholder text
+                    Text("Swipe a message to reply, or open a task")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(uiColor: .secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                 }
-
-            // Camera button
-            Button {
-                // TODO: Open camera
-            } label: {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.secondary)
             }
-
-            // Mic button
-            Button {
-                // TODO: Record audio
-            } label: {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.secondary)
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(uiColor: .systemBackground))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(uiColor: .systemBackground))
     }
 }
 
@@ -295,8 +354,12 @@ struct ProjectMessageBubble: View {
     var onTaskTap: ((TaskReference) -> Void)? = nil
     var onSubtaskTap: ((SubtaskReference) -> Void)? = nil
     var onQuote: (() -> Void)? = nil
+    var onReaction: ((String) -> Void)? = nil
 
     @State private var dragOffset: CGFloat = 0
+    @State private var showingEmojiPicker = false
+
+    private let quickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
 
     var body: some View {
         switch message.messageType {
@@ -393,54 +456,44 @@ struct ProjectMessageBubble: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
 
-                    // Task reference badge
+                    // Task reference badge (not clickable - whole message is tappable)
                     if let taskRef = message.referencedTask {
-                        Button {
-                            onTaskTap?(taskRef)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checklist")
-                                    .font(.system(size: 10))
-                                Text(taskRef.taskTitle)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.9) : Theme.primary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                message.isFromCurrentUser
-                                    ? Color.white.opacity(0.2)
-                                    : Theme.primaryLight
-                            )
-                            .clipShape(Capsule())
+                        HStack(spacing: 4) {
+                            Image(systemName: "checklist")
+                                .font(.system(size: 10))
+                            Text(taskRef.taskTitle)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
+                        .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.9) : Theme.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            message.isFromCurrentUser
+                                ? Color.white.opacity(0.2)
+                                : Theme.primaryLight
+                        )
+                        .clipShape(Capsule())
                     }
 
-                    // Subtask reference badge (if different from task)
+                    // Subtask reference badge (not clickable - whole message is tappable)
                     if let subtaskRef = message.referencedSubtask {
-                        Button {
-                            onSubtaskTap?(subtaskRef)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle")
-                                    .font(.system(size: 10))
-                                Text(subtaskRef.subtaskTitle)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.9) : Theme.primary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                message.isFromCurrentUser
-                                    ? Color.white.opacity(0.2)
-                                    : Theme.primaryLight
-                            )
-                            .clipShape(Capsule())
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle")
+                                .font(.system(size: 10))
+                            Text(subtaskRef.subtaskTitle)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
+                        .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.9) : Theme.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            message.isFromCurrentUser
+                                ? Color.white.opacity(0.2)
+                                : Theme.primaryLight
+                        )
+                        .clipShape(Capsule())
                     }
 
                     // Attachment preview
@@ -462,11 +515,49 @@ struct ProjectMessageBubble: View {
                 .foregroundStyle(message.isFromCurrentUser ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
 
+                // Reactions display
+                if !message.reactions.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(Array(message.groupedReactions.keys.sorted()), id: \.self) { emoji in
+                            if let reactions = message.groupedReactions[emoji] {
+                                HStack(spacing: 2) {
+                                    Text(emoji)
+                                        .font(.system(size: 14))
+                                    if reactions.count > 1 {
+                                        Text("\(reactions.count)")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(uiColor: .systemGray5))
+                                .clipShape(Capsule())
+                                .onTapGesture {
+                                    onReaction?(emoji)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Text(message.timestamp, style: .time)
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
             .offset(x: dragOffset)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                // Tap to navigate to subtask if present, otherwise task
+                if let subtaskRef = message.referencedSubtask {
+                    onSubtaskTap?(subtaskRef)
+                } else if let taskRef = message.referencedTask {
+                    onTaskTap?(taskRef)
+                }
+            }
+            .onLongPressGesture {
+                showingEmojiPicker = true
+            }
             .gesture(
                 DragGesture()
                     .onChanged { value in
@@ -483,11 +574,32 @@ struct ProjectMessageBubble: View {
                         }
                     }
             )
+            .popover(isPresented: $showingEmojiPicker) {
+                emojiPickerView
+                    .presentationCompactAdaptation(.popover)
+            }
 
             if !message.isFromCurrentUser {
                 Spacer(minLength: 60)
             }
         }
+    }
+
+    private var emojiPickerView: some View {
+        HStack(spacing: 12) {
+            ForEach(quickEmojis, id: \.self) { emoji in
+                Button {
+                    onReaction?(emoji)
+                    showingEmojiPicker = false
+                } label: {
+                    Text(emoji)
+                        .font(.system(size: 28))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
@@ -1471,17 +1583,8 @@ struct ProjectNewTasksInboxSheet: View {
                         task: task,
                         projectName: viewModel.project.name,
                         viewModel: viewModel,
-                        onAction: { action, message in
-                            switch action {
-                            case .accept:
-                                viewModel.acceptTask(task, message: message)
-                            case .decline:
-                                viewModel.declineTask(task, reason: message ?? "I can't take this on")
-                            case .ask:
-                                if let msg = message, !msg.isEmpty {
-                                    viewModel.sendTaskQuestion(task, message: msg)
-                                }
-                            }
+                        onAccept: {
+                            viewModel.acceptTask(task, message: nil)
                             showTaskDetail = false
                             selectedTask = nil
                         },
@@ -1597,75 +1700,40 @@ struct NewTaskInboxDetailSheet: View {
     let task: DONEOTask
     let projectName: String
     @Bindable var viewModel: ProjectChatViewModel
-    let onAction: (NewTaskAction, String?) -> Void
+    let onAccept: () -> Void
     let onCancel: () -> Void
 
-    @State private var messageText = ""
-    @State private var selectedAction: NewTaskAction = .accept
+    @State private var commentText = ""
+    @FocusState private var isCommentFocused: Bool
 
-    enum NewTaskAction {
-        case accept, decline, ask
+    // Messages related to this task (for assignment discussion)
+    private var assignmentMessages: [Message] {
+        viewModel.project.messages.filter { message in
+            message.referencedTask?.taskId == task.id
+        }
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Task header
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(task.title)
-                            .font(.system(size: 20, weight: .semibold))
-
-                        HStack(spacing: 8) {
-                            if let createdBy = task.createdBy {
-                                Label("from \(createdBy.displayFirstName)", systemImage: "person")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let dueDate = task.dueDate {
-                                Label(dueDate.formatted(.dateTime.month(.abbreviated).day()), systemImage: "calendar")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(task.isOverdue ? .red : (task.isDueToday ? .orange : .secondary))
-                            }
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                    // Notes section
-                    if let notes = task.notes, !notes.isEmpty {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Task header
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("Notes", systemImage: "doc.text")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(.secondary)
+                            Text(task.title)
+                                .font(.system(size: 20, weight: .semibold))
 
-                            Text(notes)
-                                .font(.system(size: 15))
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
+                            HStack(spacing: 8) {
+                                if let createdBy = task.createdBy {
+                                    Label("from \(createdBy.displayFirstName)", systemImage: "person")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
 
-                    // Subtasks section
-                    if !task.subtasks.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("\(task.subtasks.count) Subtasks", systemImage: "checklist")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            ForEach(task.subtasks) { subtask in
-                                HStack(spacing: 8) {
-                                    Image(systemName: "circle")
-                                        .font(.system(size: 14))
-                                        .foregroundStyle(.tertiary)
-                                    Text(subtask.title)
-                                        .font(.system(size: 14))
-                                        .foregroundStyle(.primary)
+                                if let dueDate = task.dueDate {
+                                    Label(dueDate.formatted(.dateTime.month(.abbreviated).day()), systemImage: "calendar")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(task.isOverdue ? .red : (task.isDueToday ? .orange : .secondary))
                                 }
                             }
                         }
@@ -1673,32 +1741,113 @@ struct NewTaskInboxDetailSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color(uiColor: .secondarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
 
-                    // Response section
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Your Response")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.secondary)
+                        // Notes section
+                        if let notes = task.notes, !notes.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("Notes", systemImage: "doc.text")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.secondary)
 
-                        // Action picker
-                        Picker("Action", selection: $selectedAction) {
-                            Text("Accept").tag(NewTaskAction.accept)
-                            Text("Decline").tag(NewTaskAction.decline)
-                            Text("Ask").tag(NewTaskAction.ask)
+                                Text(notes)
+                                    .font(.system(size: 15))
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .pickerStyle(.segmented)
 
-                        // Message field
-                        TextField(placeholderText, text: $messageText, axis: .vertical)
-                            .lineLimit(3...6)
-                            .textFieldStyle(.roundedBorder)
+                        // Subtasks section
+                        if !task.subtasks.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("\(task.subtasks.count) Subtasks", systemImage: "checklist")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(.secondary)
+
+                                ForEach(task.subtasks) { subtask in
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "circle")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.tertiary)
+                                        Text(subtask.title)
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.primary)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+
+                        // Accept button
+                        Button {
+                            onAccept()
+                        } label: {
+                            Text("Accept Task")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(.green)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+
+                        // Discussion section header
+                        HStack {
+                            Text("Discussion")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            if !assignmentMessages.isEmpty {
+                                Text("(\(assignmentMessages.count))")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+
+                        // Chat area with background
+                        VStack(spacing: 0) {
+                            if assignmentMessages.isEmpty {
+                                HStack {
+                                    Spacer()
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "bubble.left.and.bubble.right")
+                                            .font(.system(size: 28))
+                                            .foregroundStyle(.tertiary)
+                                        Text("No comments yet")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(.secondary)
+                                        Text("Ask questions or discuss details below")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .padding(.vertical, 40)
+                                    Spacer()
+                                }
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(assignmentMessages) { message in
+                                        AssignmentChatBubble(message: message)
+                                    }
+                                }
+                                .padding(.vertical, 12)
+                                .padding(.horizontal, 8)
+                            }
+
+                            Spacer(minLength: 60) // Space for input bar
+                        }
+                        .frame(maxWidth: .infinity)
+                        .background(Color(uiColor: .systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                     .padding()
-                    .background(Color(uiColor: .secondarySystemGroupedBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .padding()
+
+                // Comment input bar at bottom
+                assignmentCommentBar
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(projectName)
@@ -1709,39 +1858,199 @@ struct NewTaskInboxDetailSheet: View {
                         onCancel()
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(actionButtonText) {
-                        onAction(selectedAction, messageText.isEmpty ? nil : messageText)
-                    }
-                    .fontWeight(.semibold)
-                    .foregroundStyle(actionButtonColor)
-                    .disabled(selectedAction == .ask && messageText.isEmpty)
-                }
             }
         }
     }
 
-    private var placeholderText: String {
-        switch selectedAction {
-        case .accept: return "Add a message (optional)"
-        case .decline: return "Reason for declining (optional)"
-        case .ask: return "What would you like to ask?"
+    // MARK: - Comment Input Bar
+
+    private var assignmentCommentBar: some View {
+        HStack(spacing: 8) {
+            // Text field
+            TextField("Ask a question or comment...", text: $commentText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .focused($isCommentFocused)
+                .submitLabel(.send)
+                .onSubmit {
+                    sendComment()
+                }
+
+            // Send button (shows when text entered)
+            if !commentText.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button {
+                    sendComment()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Theme.primary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(uiColor: .systemBackground))
+        .overlay(alignment: .top) {
+            Divider()
         }
     }
 
-    private var actionButtonText: String {
-        switch selectedAction {
-        case .accept: return "Accept"
-        case .decline: return "Decline"
-        case .ask: return "Send"
+    private func sendComment() {
+        let trimmedText = commentText.trimmingCharacters(in: .whitespaces)
+        guard !trimmedText.isEmpty else { return }
+
+        // Send message with task reference
+        let taskRef = TaskReference(task: task)
+        viewModel.sendMessage(content: trimmedText, referencedTask: taskRef)
+
+        commentText = ""
+        isCommentFocused = false
+    }
+}
+
+// MARK: - Assignment Chat Bubble
+
+// MARK: - Chat Attachment Options Sheet
+
+struct ChatAttachmentOptionsSheet: View {
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Header
+            HStack {
+                Text("Add Attachment")
+                    .font(.system(size: 17, weight: .semibold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 16)
+
+            // Options
+            HStack(spacing: 32) {
+                // Photo Library
+                Button {
+                    dismiss()
+                    // TODO: Open photo library
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Theme.primary)
+                        Text("Photo")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.primary)
+                    }
+                }
+
+                // Document
+                Button {
+                    dismiss()
+                    // TODO: Open document picker
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "doc")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.orange)
+                        Text("Document")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.primary)
+                    }
+                }
+
+                // Camera
+                Button {
+                    dismiss()
+                    // TODO: Open camera
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.blue)
+                        Text("Camera")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.primary)
+                    }
+                }
+            }
+            .padding(.horizontal)
+
+            Spacer()
         }
     }
+}
 
-    private var actionButtonColor: Color {
-        switch selectedAction {
-        case .accept: return .green
-        case .decline: return .red
-        case .ask: return Theme.primary
+// MARK: - Assignment Chat Bubble
+
+struct AssignmentChatBubble: View {
+    let message: Message
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            // Avatar on left for others
+            if !message.isFromCurrentUser {
+                Circle()
+                    .fill(Theme.primaryLight)
+                    .frame(width: 26, height: 26)
+                    .overlay {
+                        Text(message.sender.avatarInitials)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(Theme.primary)
+                    }
+            } else {
+                Spacer(minLength: 40)
+            }
+
+            VStack(alignment: message.isFromCurrentUser ? .trailing : .leading, spacing: 2) {
+                // Name for others only
+                if !message.isFromCurrentUser {
+                    HStack(spacing: 4) {
+                        Text(message.sender.displayFirstName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(message.timestamp, style: .time)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                // Message bubble
+                Text(message.content)
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        message.isFromCurrentUser
+                            ? Theme.primary
+                            : Color(uiColor: .systemGray5)
+                    )
+                    .foregroundStyle(message.isFromCurrentUser ? .white : .primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                // Time for current user
+                if message.isFromCurrentUser {
+                    Text(message.timestamp, style: .time)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            // Spacer on right for others
+            if !message.isFromCurrentUser {
+                Spacer(minLength: 40)
+            }
         }
     }
 }

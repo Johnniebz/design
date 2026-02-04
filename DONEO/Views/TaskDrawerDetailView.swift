@@ -445,201 +445,155 @@ struct SubtaskInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showingEditSheet = false
-    @State private var showingInstructionAttachments = false
+    @State private var showingDetailsSheet = false
+
+    // Comment bar state
+    @State private var commentText: String = ""
+    @State private var showingAttachmentOptions = false
+    @FocusState private var isCommentFocused: Bool
 
     private var canEdit: Bool {
         viewModel.canEditSubtask(subtask)
     }
 
+    // Messages related to this subtask
+    private var subtaskMessages: [Message] {
+        viewModel.project.messages.filter { $0.referencedSubtask?.subtaskId == subtask.id }
+    }
+
+    // Status helpers
+    private var statusIcon: String {
+        if subtask.isDone { return "checkmark.circle.fill" }
+        if subtask.isOverdue { return "exclamationmark.circle.fill" }
+        return "circle"
+    }
+
+    private var statusText: String {
+        if subtask.isDone { return "Completed" }
+        if subtask.isOverdue { return "Overdue" }
+        return "Pending"
+    }
+
+    private var statusColor: Color {
+        if subtask.isDone { return .green }
+        if subtask.isOverdue { return .red }
+        return .secondary
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Subtask title with status
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(subtask.title)
-                            .font(.system(size: 20, weight: .semibold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 0) {
+                // MARK: - Compact Header
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(subtask.title)
+                                .font(.system(size: 20, weight: .bold))
+                                .fixedSize(horizontal: false, vertical: true)
 
-                        // Status badge
-                        HStack(spacing: 8) {
-                            if subtask.isDone {
+                            // Inline info
+                            HStack(spacing: 8) {
+                                // Status
                                 HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 12))
-                                    Text("Completed")
+                                    Image(systemName: statusIcon)
+                                        .font(.system(size: 10))
+                                    Text(statusText)
                                         .font(.system(size: 12, weight: .medium))
                                 }
-                                .foregroundStyle(.green)
-                            } else if subtask.isOverdue {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.system(size: 12))
-                                    Text("Overdue")
-                                        .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(statusColor)
+
+                                if subtask.dueDate != nil || !subtask.assignees.isEmpty {
+                                    Text("·")
+                                        .foregroundStyle(.tertiary)
                                 }
-                                .foregroundStyle(.red)
-                            } else {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "circle")
-                                        .font(.system(size: 12))
-                                    Text("Pending")
-                                        .font(.system(size: 12, weight: .medium))
+
+                                // Due date
+                                if let dueDate = subtask.dueDate {
+                                    Text(formatDueDate(dueDate))
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(subtask.isOverdue ? .red : .secondary)
                                 }
-                                .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
 
-                    // Due date (if set)
-                    if let dueDate = subtask.dueDate {
-                        HStack(spacing: 10) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 16))
-                                .foregroundStyle(subtask.isOverdue ? .red : Theme.primary)
-                            Text("Due \(formatDueDate(dueDate))")
-                                .font(.system(size: 14))
-                                .foregroundStyle(subtask.isOverdue ? .red : .primary)
-                            Spacer()
-                        }
-                        .padding(14)
-                        .background(Color(uiColor: .secondarySystemBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-
-                    // Assignees
-                    if !subtask.assignees.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Assigned to")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            FlowLayout(spacing: 8) {
-                                ForEach(subtask.assignees) { assignee in
-                                    HStack(spacing: 6) {
-                                        Circle()
-                                            .fill(Theme.primaryLight)
-                                            .frame(width: 24, height: 24)
-                                            .overlay {
-                                                Text(assignee.avatarInitials)
-                                                    .font(.system(size: 9, weight: .medium))
-                                                    .foregroundStyle(Theme.primary)
-                                            }
-                                        Text(assignee.id == viewModel.currentUser.id ? "Me" : assignee.displayFirstName)
-                                            .font(.system(size: 13))
+                                // Assignee (just first name)
+                                if let firstAssignee = subtask.assignees.first {
+                                    if subtask.dueDate != nil {
+                                        Text("·")
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(Color(uiColor: .secondarySystemBackground))
-                                    .clipShape(Capsule())
-                                }
-                            }
-                        }
-                    }
-
-                    // Notes & Instructions
-                    if let description = subtask.description, !description.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Notes & Instructions")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.secondary)
-
-                                // Paperclip for instruction attachments
-                                if !subtask.instructionAttachments.isEmpty {
-                                    Spacer()
-                                    Button {
-                                        showingInstructionAttachments = true
-                                    } label: {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "paperclip")
-                                                .font(.system(size: 12))
-                                            Text("\(subtask.instructionAttachments.count)")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                        .foregroundStyle(Theme.primary)
-                                    }
-                                }
-                            }
-
-                            Text(description)
-                                .font(.system(size: 15))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(Color(uiColor: .secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                            // Show instruction attachments when tapped
-                            if showingInstructionAttachments {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
-                                    ForEach(subtask.instructionAttachments) { attachment in
-                                        TaskAttachmentCard(attachment: attachment)
-                                    }
-                                }
-                                .padding(.top, 4)
-                            }
-                        }
-                    } else if !subtask.instructionAttachments.isEmpty {
-                        // Show attachments even if no description
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Support Documents")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.secondary)
-
-                                Spacer()
-
-                                Button {
-                                    showingInstructionAttachments.toggle()
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "paperclip")
+                                    Text(firstAssignee.id == viewModel.currentUser.id ? "Me" : firstAssignee.displayFirstName)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                    if subtask.assignees.count > 1 {
+                                        Text("+\(subtask.assignees.count - 1)")
                                             .font(.system(size: 12))
-                                        Text("\(subtask.instructionAttachments.count)")
-                                            .font(.system(size: 12, weight: .medium))
-                                        Image(systemName: showingInstructionAttachments ? "chevron.up" : "chevron.down")
-                                            .font(.system(size: 10))
-                                    }
-                                    .foregroundStyle(Theme.primary)
-                                }
-                            }
-
-                            if showingInstructionAttachments {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
-                                    ForEach(subtask.instructionAttachments) { attachment in
-                                        TaskAttachmentCard(attachment: attachment)
+                                            .foregroundStyle(.tertiary)
                                     }
                                 }
                             }
+
+                            // Parent task reference
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.turn.down.right")
+                                    .font(.system(size: 10))
+                                Text(task.title)
+                                    .font(.system(size: 12))
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 2)
+                        }
+
+                        Spacer()
+
+                        // Info button
+                        Button {
+                            showingDetailsSheet = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Theme.primary)
                         }
                     }
-
-                    // Created by section
-                    if let creator = subtask.createdBy {
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(Color.purple.opacity(0.2))
-                                .frame(width: 28, height: 28)
-                                .overlay {
-                                    Text(creator.avatarInitials)
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.purple)
-                                }
-                            Text("Created by \(creator.displayFirstName)")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.secondary)
-                            Text("·")
-                                .foregroundStyle(.tertiary)
-                            Text(subtask.createdAt.formatted(.dateTime.month(.abbreviated).day()))
-                                .font(.system(size: 13))
-                                .foregroundStyle(.tertiary)
-                            Spacer()
-                        }
-                    }
-
-                    Spacer(minLength: 20)
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(uiColor: .systemBackground))
+
+                Divider()
+
+                // MARK: - Chat Area (Full Height)
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if subtaskMessages.isEmpty {
+                            VStack(spacing: 8) {
+                                Spacer()
+                                    .frame(height: 60)
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .font(.system(size: 32))
+                                    .foregroundStyle(.quaternary)
+                                Text("No messages yet")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(.tertiary)
+                                Text("Start the conversation")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.quaternary)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+                        } else {
+                            ForEach(subtaskMessages) { message in
+                                TaskCommentBubble(message: message, viewModel: viewModel)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                }
+                .background(Color(uiColor: .systemGray6))
+
+                // MARK: - Comment Input Bar
+                subtaskCommentBar
             }
             .navigationTitle("Subtask")
             .navigationBarTitleDisplayMode(.inline)
@@ -665,7 +619,98 @@ struct SubtaskInfoSheet: View {
             .sheet(isPresented: $showingEditSheet) {
                 EditSubtaskSheet(subtask: subtask, task: task, viewModel: viewModel)
             }
+            .sheet(isPresented: $showingDetailsSheet) {
+                SubtaskDetailsSheet(subtask: subtask, task: task, viewModel: viewModel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .onAppear {
+                // Mark all messages for this subtask as read
+                viewModel.markAsRead(subtask: subtask, in: task)
+            }
         }
+    }
+
+    // MARK: - Comment Input Bar
+
+    private var subtaskCommentBar: some View {
+        HStack(spacing: 8) {
+            // Attachment button (+)
+            Button {
+                showingAttachmentOptions = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Theme.primary)
+            }
+
+            // Text field
+            TextField("Comment on this subtask...", text: $commentText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .focused($isCommentFocused)
+                .submitLabel(.send)
+                .onSubmit {
+                    sendSubtaskComment()
+                }
+
+            // Send button (shows when text entered) or camera/mic buttons
+            if !commentText.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button {
+                    sendSubtaskComment()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Theme.primary)
+                }
+            } else {
+                // Camera button
+                Button {
+                    // TODO: Open camera for subtask
+                } label: {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+
+                // Mic button
+                Button {
+                    // TODO: Record audio for subtask
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(uiColor: .systemBackground))
+        .overlay(alignment: .top) {
+            Divider()
+        }
+        .sheet(isPresented: $showingAttachmentOptions) {
+            SubtaskAttachmentOptionsSheet(subtask: subtask, task: task, viewModel: viewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func sendSubtaskComment() {
+        let trimmedText = commentText.trimmingCharacters(in: .whitespaces)
+        guard !trimmedText.isEmpty else { return }
+
+        // Send message with task and subtask reference
+        let taskRef = TaskReference(task: task)
+        let subtaskRef = SubtaskReference(subtask: subtask)
+        viewModel.sendMessage(content: trimmedText, referencedTask: taskRef, referencedSubtask: subtaskRef)
+
+        commentText = ""
+        isCommentFocused = false
     }
 
     private func formatDueDate(_ date: Date) -> String {
@@ -678,6 +723,194 @@ struct SubtaskInfoSheet: View {
             return "Yesterday"
         } else {
             return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Subtask Attachment Options Sheet
+
+struct SubtaskAttachmentOptionsSheet: View {
+    let subtask: Subtask
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var showingFilePicker = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.primary)
+                        .padding(8)
+                        .background(Theme.primaryLight)
+                        .clipShape(Circle())
+                }
+
+                Spacer()
+
+                Text("Add to Discussion")
+                    .font(.system(size: 16, weight: .semibold))
+
+                Spacer()
+
+                Color.clear.frame(width: 32, height: 32)
+            }
+            .padding()
+
+            Divider()
+
+            // Options
+            VStack(spacing: 0) {
+                // Photos
+                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.blue.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.blue)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Photos")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Share photos from your library")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+                    .padding(.leading, 76)
+
+                // Documents
+                Button {
+                    showingFilePicker = true
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.orange.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "doc.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.orange)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Document")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Share files and documents")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+                    .padding(.leading, 76)
+
+                // Camera
+                Button {
+                    // TODO: Open camera
+                    dismiss()
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.green.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.green)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Camera")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Take a photo or video")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+            }
+            .background(Color(uiColor: .systemBackground))
+
+            Spacer()
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .onChange(of: selectedPhotoItems) { _, newItems in
+            guard !newItems.isEmpty else { return }
+            // Send photos as message with subtask reference
+            let taskRef = TaskReference(task: task)
+            let subtaskRef = SubtaskReference(subtask: subtask)
+            for _ in newItems {
+                let attachment = MessageAttachment(
+                    type: .image,
+                    fileName: "Photo_\(Date().timeIntervalSince1970).jpg"
+                )
+                let message = Message(
+                    content: "Shared a photo",
+                    sender: viewModel.currentUser,
+                    isFromCurrentUser: true,
+                    referencedTask: taskRef,
+                    referencedSubtask: subtaskRef,
+                    attachment: attachment
+                )
+                viewModel.project.messages.append(message)
+            }
+            MockDataService.shared.updateProject(viewModel.project)
+            selectedPhotoItems = []
+            dismiss()
+        }
+        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.pdf, .text, .data]) { result in
+            switch result {
+            case .success(let url):
+                let taskRef = TaskReference(task: task)
+                let subtaskRef = SubtaskReference(subtask: subtask)
+                let attachment = MessageAttachment(
+                    type: .document,
+                    fileName: url.lastPathComponent
+                )
+                let message = Message(
+                    content: "Shared a document",
+                    sender: viewModel.currentUser,
+                    isFromCurrentUser: true,
+                    referencedTask: taskRef,
+                    referencedSubtask: subtaskRef,
+                    attachment: attachment
+                )
+                viewModel.project.messages.append(message)
+                MockDataService.shared.updateProject(viewModel.project)
+                dismiss()
+            case .failure:
+                break
+            }
         }
     }
 }
@@ -1221,347 +1454,145 @@ struct TaskInfoSheet: View {
     @Bindable var viewModel: ProjectChatViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showingInstructionAttachments = false
     @State private var showingEditSheet = false
+    @State private var showingDetailsSheet = false
 
-    // Deliverables attachment states
-    @State private var selectedPhotos: [PhotosPickerItem] = []
-    @State private var showingDocumentPicker = false
-    @State private var showingContactPicker = false
-    @State private var showingUploadSheet = false
-    @State private var pendingUploadType: AttachmentType = .image
-    @State private var pendingUploadCount: Int = 0
+    // Comment bar state
+    @State private var commentText: String = ""
+    @State private var showingAttachmentOptions = false
+    @FocusState private var isCommentFocused: Bool
 
     private var canEdit: Bool {
         viewModel.canEditTask(task)
     }
 
-    // Instruction attachments (from creator)
-    private var instructionAttachments: [Attachment] {
-        task.attachments.filter { $0.isInstruction }
+    // Messages related to this task
+    private var taskMessages: [Message] {
+        viewModel.project.messages.filter { $0.referencedTask?.taskId == task.id }
     }
 
-    // Deliverable attachments (from team)
-    private var deliverableAttachments: [Attachment] {
-        task.attachments.filter { !$0.isInstruction }
+    // Status helpers
+    private var statusIcon: String {
+        if task.status == .done { return "checkmark.circle.fill" }
+        if task.isOverdue { return "exclamationmark.circle.fill" }
+        return "circle"
+    }
+
+    private var statusText: String {
+        if task.status == .done { return "Completed" }
+        if task.isOverdue { return "Overdue" }
+        return "In Progress"
+    }
+
+    private var statusColor: Color {
+        if task.status == .done { return .green }
+        if task.isOverdue { return .red }
+        return .orange
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Task title (view-only)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(task.title)
-                            .font(.system(size: 20, weight: .semibold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 0) {
+                // MARK: - Compact Header
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(task.title)
+                                .font(.system(size: 20, weight: .bold))
+                                .fixedSize(horizontal: false, vertical: true)
 
-                        // Status badge
-                        HStack(spacing: 8) {
-                            if task.status == .done {
+                            // Inline info
+                            HStack(spacing: 8) {
+                                // Status
                                 HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 12))
-                                    Text("Completed")
+                                    Image(systemName: statusIcon)
+                                        .font(.system(size: 10))
+                                    Text(statusText)
                                         .font(.system(size: 12, weight: .medium))
                                 }
-                                .foregroundStyle(.green)
-                            } else if task.isOverdue {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.system(size: 12))
-                                    Text("Overdue")
-                                        .font(.system(size: 12, weight: .medium))
-                                }
-                                .foregroundStyle(.red)
-                            } else {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "clock")
-                                        .font(.system(size: 12))
-                                    Text("In Progress")
-                                        .font(.system(size: 12, weight: .medium))
-                                }
-                                .foregroundStyle(.orange)
-                            }
+                                .foregroundStyle(statusColor)
 
-                            if let dueDate = task.dueDate {
-                                Text("·")
-                                    .foregroundStyle(.tertiary)
-                                Text("Due \(formatDueDate(dueDate))")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(task.isOverdue ? .red : .secondary)
-                            }
-                        }
-                    }
-
-                    Divider()
-
-                    // Assignees section (view-only)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Assigned to")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        if task.assignees.isEmpty {
-                            Text("No one assigned")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.tertiary)
-                        } else {
-                            HStack(spacing: -8) {
-                                ForEach(task.assignees.prefix(5)) { assignee in
-                                    Circle()
-                                        .fill(Theme.primaryLight)
-                                        .frame(width: 36, height: 36)
-                                        .overlay {
-                                            Text(assignee.avatarInitials)
-                                                .font(.system(size: 12, weight: .medium))
-                                                .foregroundStyle(Theme.primary)
-                                        }
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color(uiColor: .systemBackground), lineWidth: 2)
-                                        )
-                                }
-                                if task.assignees.count > 5 {
-                                    Circle()
-                                        .fill(Color(uiColor: .secondarySystemBackground))
-                                        .frame(width: 36, height: 36)
-                                        .overlay {
-                                            Text("+\(task.assignees.count - 5)")
-                                                .font(.system(size: 11, weight: .medium))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color(uiColor: .systemBackground), lineWidth: 2)
-                                        )
-                                }
-                            }
-                        }
-                    }
-
-                    // Notes & Instructions section (view-only)
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Notes & Instructions")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            Spacer()
-
-                            // Paperclip for instruction/reference attachments
-                            if !instructionAttachments.isEmpty {
-                                Button {
-                                    showingInstructionAttachments.toggle()
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "paperclip")
-                                            .font(.system(size: 14))
-                                        Text("\(instructionAttachments.count)")
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                    .foregroundStyle(Theme.primary)
-                                }
-                            }
-                        }
-
-                        if let notes = task.notes, !notes.isEmpty {
-                            Text(notes)
-                                .font(.system(size: 15))
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(uiColor: .secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        } else {
-                            Text("No instructions provided")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.tertiary)
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color(uiColor: .secondarySystemBackground))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-
-                        // Show instruction attachments when expanded
-                        if showingInstructionAttachments && !instructionAttachments.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Reference files")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.tertiary)
-
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
-                                    ForEach(instructionAttachments) { attachment in
-                                        TaskAttachmentCard(attachment: attachment)
-                                    }
-                                }
-                            }
-                            .padding(.top, 8)
-                        }
-                    }
-
-                    // Deliverables section (everyone can add)
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Deliverables")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            if !deliverableAttachments.isEmpty {
-                                Text("(\(deliverableAttachments.count))")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.tertiary)
-                            }
-
-                            Spacer()
-
-                            // Everyone can add deliverables - Menu with options
-                            Menu {
-                                PhotosPicker(selection: $selectedPhotos, maxSelectionCount: 10, matching: .images) {
-                                    Label("Photos", systemImage: "photo")
+                                if task.dueDate != nil || !task.assignees.isEmpty {
+                                    Text("·")
+                                        .foregroundStyle(.tertiary)
                                 }
 
-                                Button {
-                                    // Show upload sheet for document
-                                    pendingUploadType = .document
-                                    pendingUploadCount = 1
-                                    showingUploadSheet = true
-                                } label: {
-                                    Label("Documents", systemImage: "doc")
+                                // Due date
+                                if let dueDate = task.dueDate {
+                                    Text(formatDueDate(dueDate))
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(task.isOverdue ? .red : .secondary)
                                 }
 
-                                Button {
-                                    // Show upload sheet for contact
-                                    pendingUploadType = .contact
-                                    pendingUploadCount = 1
-                                    showingUploadSheet = true
-                                } label: {
-                                    Label("Contacts", systemImage: "person.crop.circle")
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.system(size: 14))
-                                    Text("Add")
-                                        .font(.system(size: 14, weight: .medium))
-                                }
-                                .foregroundStyle(Theme.primary)
-                            }
-                        }
-
-                        // Grouped deliverables by type
-                        if deliverableAttachments.isEmpty {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(uiColor: .secondarySystemBackground))
-                                .frame(height: 70)
-                                .overlay {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: "square.and.arrow.up")
-                                            .font(.system(size: 20))
+                                // Assignee (just first name)
+                                if let firstAssignee = task.assignees.first {
+                                    if task.dueDate != nil {
+                                        Text("·")
                                             .foregroundStyle(.tertiary)
-                                        Text("Upload your work here")
+                                    }
+                                    Text(firstAssignee.displayFirstName)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                    if task.assignees.count > 1 {
+                                        Text("+\(task.assignees.count - 1)")
                                             .font(.system(size: 12))
                                             .foregroundStyle(.tertiary)
                                     }
                                 }
+                            }
+                        }
+
+                        Spacer()
+
+                        // Info button
+                        Button {
+                            showingDetailsSheet = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Theme.primary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(uiColor: .systemBackground))
+
+                Divider()
+
+                // MARK: - Chat Area (Full Height)
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if taskMessages.isEmpty {
+                            VStack(spacing: 8) {
+                                Spacer()
+                                    .frame(height: 60)
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .font(.system(size: 32))
+                                    .foregroundStyle(.quaternary)
+                                Text("No messages yet")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(.tertiary)
+                                Text("Start the conversation")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.quaternary)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
                         } else {
-                            VStack(alignment: .leading, spacing: 12) {
-                                // Photos
-                                let photos = deliverableAttachments.filter { $0.type == .image }
-                                if !photos.isEmpty {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "photo")
-                                                .font(.system(size: 11))
-                                            Text("Photos (\(photos.count))")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                        .foregroundStyle(.secondary)
-
-                                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 70), spacing: 8)], spacing: 8) {
-                                            ForEach(photos) { attachment in
-                                                TaskAttachmentCard(attachment: attachment, compact: true)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Documents
-                                let documents = deliverableAttachments.filter { $0.type == .document }
-                                if !documents.isEmpty {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "doc")
-                                                .font(.system(size: 11))
-                                            Text("Documents (\(documents.count))")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                        .foregroundStyle(.secondary)
-
-                                        VStack(spacing: 6) {
-                                            ForEach(documents) { attachment in
-                                                DocumentRowView(attachment: attachment)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Contacts
-                                let contacts = deliverableAttachments.filter { $0.type == .contact }
-                                if !contacts.isEmpty {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "person.crop.circle")
-                                                .font(.system(size: 11))
-                                            Text("Contacts (\(contacts.count))")
-                                                .font(.system(size: 12, weight: .medium))
-                                        }
-                                        .foregroundStyle(.secondary)
-
-                                        VStack(spacing: 6) {
-                                            ForEach(contacts) { attachment in
-                                                ContactRowView(attachment: attachment)
-                                            }
-                                        }
-                                    }
-                                }
+                            ForEach(taskMessages) { message in
+                                TaskCommentBubble(message: message, viewModel: viewModel)
                             }
                         }
                     }
-                    .onChange(of: selectedPhotos) { _, newPhotos in
-                        guard !newPhotos.isEmpty else { return }
-                        // Show upload sheet with comment option
-                        pendingUploadType = .image
-                        pendingUploadCount = newPhotos.count
-                        selectedPhotos = []
-                        showingUploadSheet = true
-                    }
-
-                    // Created by section
-                    if let creator = task.createdBy {
-                        HStack(spacing: 10) {
-                            Circle()
-                                .fill(Color.purple.opacity(0.2))
-                                .frame(width: 28, height: 28)
-                                .overlay {
-                                    Text(creator.avatarInitials)
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.purple)
-                                }
-                            Text("Created by \(creator.displayFirstName)")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.secondary)
-                            Text("·")
-                                .foregroundStyle(.tertiary)
-                            Text(task.createdAt.formatted(.dateTime.month(.abbreviated).day()))
-                                .font(.system(size: 13))
-                                .foregroundStyle(.tertiary)
-                            Spacer()
-                        }
-                    }
-
-                    Spacer(minLength: 20)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
                 }
-                .padding()
+                .background(Color(uiColor: .systemGray6))
+
+                // MARK: - Comment Input Bar
+                taskCommentBar
             }
             .navigationTitle("Task")
             .navigationBarTitleDisplayMode(.inline)
@@ -1587,18 +1618,14 @@ struct TaskInfoSheet: View {
             .sheet(isPresented: $showingEditSheet) {
                 EditTaskSheet(task: task, viewModel: viewModel)
             }
-            .sheet(isPresented: $showingUploadSheet) {
-                DeliverableUploadSheet(
-                    task: task,
-                    attachmentType: pendingUploadType,
-                    itemCount: pendingUploadCount,
-                    viewModel: viewModel,
-                    onDismiss: {
-                        showingUploadSheet = false
-                        pendingUploadCount = 0
-                    }
-                )
-                .presentationDetents([.medium])
+            .sheet(isPresented: $showingDetailsSheet) {
+                TaskDetailsSheet(task: task, viewModel: viewModel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .onAppear {
+                // Mark all messages for this task as read
+                viewModel.markAsRead(task: task)
             }
         }
     }
@@ -1613,6 +1640,348 @@ struct TaskInfoSheet: View {
             return "Yesterday"
         } else {
             return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+
+    // MARK: - Comment Input Bar
+
+    private var taskCommentBar: some View {
+        HStack(spacing: 8) {
+            // Attachment button (+)
+            Button {
+                showingAttachmentOptions = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Theme.primary)
+            }
+
+            // Text field
+            TextField("Comment on this task...", text: $commentText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .focused($isCommentFocused)
+                .submitLabel(.send)
+                .onSubmit {
+                    sendTaskComment()
+                }
+
+            // Send button (shows when text entered) or camera/mic buttons
+            if !commentText.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button {
+                    sendTaskComment()
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Theme.primary)
+                }
+            } else {
+                // Camera button
+                Button {
+                    // TODO: Open camera for task
+                } label: {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+
+                // Mic button
+                Button {
+                    // TODO: Record audio for task
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(uiColor: .systemBackground))
+        .overlay(alignment: .top) {
+            Divider()
+        }
+        .sheet(isPresented: $showingAttachmentOptions) {
+            TaskAttachmentOptionsSheet(task: task, viewModel: viewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private func sendTaskComment() {
+        let trimmedText = commentText.trimmingCharacters(in: .whitespaces)
+        guard !trimmedText.isEmpty else { return }
+
+        // Send message with task reference
+        let taskRef = TaskReference(task: task)
+        viewModel.sendMessage(content: trimmedText, referencedTask: taskRef)
+
+        commentText = ""
+        isCommentFocused = false
+    }
+}
+
+// MARK: - Task Comment Bubble
+
+struct TaskCommentBubble: View {
+    let message: Message
+    @Bindable var viewModel: ProjectChatViewModel
+
+    var body: some View {
+        HStack {
+            if message.isFromCurrentUser {
+                Spacer(minLength: 60)
+            }
+
+            VStack(alignment: message.isFromCurrentUser ? .trailing : .leading, spacing: 2) {
+                // Name for others only
+                if !message.isFromCurrentUser {
+                    HStack(spacing: 4) {
+                        Text(message.sender.displayFirstName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(message.timestamp, style: .time)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                // Message bubble
+                VStack(alignment: .leading, spacing: 6) {
+                    // Attachment if any
+                    if let attachment = message.attachment {
+                        HStack(spacing: 6) {
+                            Image(systemName: attachment.type == .image ? "photo.fill" : "doc.fill")
+                                .font(.system(size: 14))
+                            Text(attachment.fileName)
+                                .font(.system(size: 13))
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.9) : Theme.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            message.isFromCurrentUser
+                                ? Color.white.opacity(0.2)
+                                : Theme.primaryLight
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    // Message content
+                    if !message.content.isEmpty {
+                        Text(message.content)
+                            .font(.system(size: 14))
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    message.isFromCurrentUser
+                        ? Theme.primary
+                        : Color(uiColor: .systemGray5)
+                )
+                .foregroundStyle(message.isFromCurrentUser ? .white : .primary)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+
+                // Time for current user
+                if message.isFromCurrentUser {
+                    Text(message.timestamp, style: .time)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            if !message.isFromCurrentUser {
+                Spacer(minLength: 60)
+            }
+        }
+    }
+}
+
+// MARK: - Task Attachment Options Sheet
+
+struct TaskAttachmentOptionsSheet: View {
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var showingFilePicker = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.primary)
+                        .padding(8)
+                        .background(Theme.primaryLight)
+                        .clipShape(Circle())
+                }
+
+                Spacer()
+
+                Text("Add to Discussion")
+                    .font(.system(size: 16, weight: .semibold))
+
+                Spacer()
+
+                Color.clear.frame(width: 32, height: 32)
+            }
+            .padding()
+
+            Divider()
+
+            // Options
+            VStack(spacing: 0) {
+                // Photos
+                PhotosPicker(selection: $selectedPhotoItems, maxSelectionCount: 10, matching: .images) {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.blue.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "photo.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.blue)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Photos")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Share photos from your library")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+                    .padding(.leading, 76)
+
+                // Documents
+                Button {
+                    showingFilePicker = true
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.orange.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "doc.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.orange)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Document")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Share files and documents")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+                    .padding(.leading, 76)
+
+                // Camera
+                Button {
+                    // TODO: Open camera
+                    dismiss()
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.green.opacity(0.1))
+                                .frame(width: 44, height: 44)
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.green)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Camera")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Take a photo or video")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+            }
+            .background(Color(uiColor: .systemBackground))
+
+            Spacer()
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .onChange(of: selectedPhotoItems) { _, newItems in
+            guard !newItems.isEmpty else { return }
+            // Send photos as message with task reference
+            let taskRef = TaskReference(task: task)
+            for _ in newItems {
+                let attachment = MessageAttachment(
+                    type: .image,
+                    fileName: "Photo_\(Date().timeIntervalSince1970).jpg"
+                )
+                let message = Message(
+                    content: "Shared a photo",
+                    sender: viewModel.currentUser,
+                    isFromCurrentUser: true,
+                    referencedTask: taskRef,
+                    attachment: attachment
+                )
+                viewModel.project.messages.append(message)
+            }
+            MockDataService.shared.updateProject(viewModel.project)
+            selectedPhotoItems = []
+            dismiss()
+        }
+        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.pdf, .text, .data]) { result in
+            switch result {
+            case .success(let url):
+                let taskRef = TaskReference(task: task)
+                let attachment = MessageAttachment(
+                    type: .document,
+                    fileName: url.lastPathComponent
+                )
+                let message = Message(
+                    content: "Shared a document",
+                    sender: viewModel.currentUser,
+                    isFromCurrentUser: true,
+                    referencedTask: taskRef,
+                    attachment: attachment
+                )
+                viewModel.project.messages.append(message)
+                MockDataService.shared.updateProject(viewModel.project)
+                dismiss()
+            case .failure:
+                break
+            }
         }
     }
 }
@@ -1852,6 +2221,371 @@ struct EditTaskSheet: View {
             return "Tomorrow"
         } else {
             return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Task Details Sheet (shown from info button)
+
+struct TaskDetailsSheet: View {
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var instructionAttachments: [Attachment] {
+        task.attachments.filter { $0.isInstruction }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Status section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Status")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 12) {
+                            Button {
+                                viewModel.toggleTaskStatus(task)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 20))
+                                    Text(task.status == .done ? "Completed" : "Mark Complete")
+                                        .font(.system(size: 15, weight: .medium))
+                                }
+                                .foregroundStyle(task.status == .done ? .green : Theme.primary)
+                            }
+
+                            Spacer()
+
+                            if task.isOverdue && task.status != .done {
+                                Text("Overdue")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.red)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.red.opacity(0.1))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    // Due date
+                    if let dueDate = task.dueDate {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Due Date")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar")
+                                    .foregroundStyle(task.isOverdue ? .red : Theme.primary)
+                                Text(dueDate.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(task.isOverdue ? .red : .primary)
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // Assignees
+                    if !task.assignees.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Assigned to")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            FlowLayout(spacing: 8) {
+                                ForEach(task.assignees) { assignee in
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(Theme.primaryLight)
+                                            .frame(width: 28, height: 28)
+                                            .overlay {
+                                                Text(assignee.avatarInitials)
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundStyle(Theme.primary)
+                                            }
+                                        Text(assignee.id == viewModel.currentUser.id ? "Me" : assignee.displayFirstName)
+                                            .font(.system(size: 14))
+                                    }
+                                    .padding(.trailing, 8)
+                                    .padding(.vertical, 4)
+                                    .padding(.leading, 4)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(Capsule())
+                                }
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // Instructions
+                    if let notes = task.notes, !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Instructions")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Text(notes)
+                                .font(.system(size: 15))
+                                .foregroundStyle(.primary)
+                        }
+
+                        Divider()
+                    }
+
+                    // Attachments
+                    if !instructionAttachments.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Attachments")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
+                                ForEach(instructionAttachments) { attachment in
+                                    TaskAttachmentCard(attachment: attachment)
+                                }
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // Created by
+                    if let creator = task.createdBy {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Created by")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.2))
+                                    .frame(width: 28, height: 28)
+                                    .overlay {
+                                        Text(creator.avatarInitials)
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(.purple)
+                                    }
+                                Text(creator.displayFirstName)
+                                    .font(.system(size: 14))
+                                Text("·")
+                                    .foregroundStyle(.tertiary)
+                                Text(task.createdAt.formatted(.dateTime.month(.abbreviated).day().year()))
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Task Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Subtask Details Sheet (shown from info button)
+
+struct SubtaskDetailsSheet: View {
+    let subtask: Subtask
+    let task: DONEOTask
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Status section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Status")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 12) {
+                            Button {
+                                viewModel.toggleSubtaskStatus(task, subtask)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: subtask.isDone ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 20))
+                                    Text(subtask.isDone ? "Completed" : "Mark Complete")
+                                        .font(.system(size: 15, weight: .medium))
+                                }
+                                .foregroundStyle(subtask.isDone ? .green : Theme.primary)
+                            }
+
+                            Spacer()
+
+                            if subtask.isOverdue && !subtask.isDone {
+                                Text("Overdue")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.red)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.red.opacity(0.1))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    // Parent task
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Part of")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "checklist")
+                                .foregroundStyle(Theme.primary)
+                            Text(task.title)
+                                .font(.system(size: 15))
+                        }
+                    }
+
+                    Divider()
+
+                    // Due date
+                    if let dueDate = subtask.dueDate {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Due Date")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 8) {
+                                Image(systemName: "calendar")
+                                    .foregroundStyle(subtask.isOverdue ? .red : Theme.primary)
+                                Text(dueDate.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(subtask.isOverdue ? .red : .primary)
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // Assignees
+                    if !subtask.assignees.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Assigned to")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            FlowLayout(spacing: 8) {
+                                ForEach(subtask.assignees) { assignee in
+                                    HStack(spacing: 6) {
+                                        Circle()
+                                            .fill(Theme.primaryLight)
+                                            .frame(width: 28, height: 28)
+                                            .overlay {
+                                                Text(assignee.avatarInitials)
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundStyle(Theme.primary)
+                                            }
+                                        Text(assignee.id == viewModel.currentUser.id ? "Me" : assignee.displayFirstName)
+                                            .font(.system(size: 14))
+                                    }
+                                    .padding(.trailing, 8)
+                                    .padding(.vertical, 4)
+                                    .padding(.leading, 4)
+                                    .background(Color(uiColor: .secondarySystemBackground))
+                                    .clipShape(Capsule())
+                                }
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // Instructions
+                    if let description = subtask.description, !description.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Instructions")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Text(description)
+                                .font(.system(size: 15))
+                                .foregroundStyle(.primary)
+                        }
+
+                        Divider()
+                    }
+
+                    // Attachments
+                    if !subtask.instructionAttachments.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Attachments")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
+                                ForEach(subtask.instructionAttachments) { attachment in
+                                    TaskAttachmentCard(attachment: attachment)
+                                }
+                            }
+                        }
+
+                        Divider()
+                    }
+
+                    // Created by
+                    if let creator = subtask.createdBy {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Created by")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.2))
+                                    .frame(width: 28, height: 28)
+                                    .overlay {
+                                        Text(creator.avatarInitials)
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(.purple)
+                                    }
+                                Text(creator.displayFirstName)
+                                    .font(.system(size: 14))
+                                Text("·")
+                                    .foregroundStyle(.tertiary)
+                                Text(subtask.createdAt.formatted(.dateTime.month(.abbreviated).day().year()))
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .navigationTitle("Subtask Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

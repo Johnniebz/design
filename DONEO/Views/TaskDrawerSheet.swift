@@ -283,6 +283,22 @@ struct TaskRowView: View {
                             }
                             .foregroundStyle(Theme.primary)
                         }
+
+                        // Unread comments indicator
+                        let unreadCount = viewModel.unreadCount(for: task)
+                        if unreadCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "bubble.left.fill")
+                                    .font(.system(size: 10))
+                                Text("\(unreadCount)")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.primary)
+                            .clipShape(Capsule())
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -401,6 +417,22 @@ struct SubtaskRowView: View {
                                     .font(.system(size: 11))
                             }
                             .foregroundStyle(subtask.isOverdue ? .red : .secondary)
+                        }
+
+                        // Unread comments indicator
+                        let unreadCount = viewModel.unreadCount(for: subtask, in: task)
+                        if unreadCount > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "bubble.left.fill")
+                                    .font(.system(size: 8))
+                                Text("\(unreadCount)")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Theme.primary)
+                            .clipShape(Capsule())
                         }
                     }
                 }

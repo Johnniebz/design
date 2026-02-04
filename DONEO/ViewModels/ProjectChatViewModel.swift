@@ -498,6 +498,107 @@ final class ProjectChatViewModel {
         return (completed, task.subtasks.count)
     }
 
+    // MARK: - Message Reactions
+
+    func addReaction(_ emoji: String, to message: Message) {
+        guard let index = project.messages.firstIndex(where: { $0.id == message.id }) else { return }
+
+        // Check if user already reacted with this emoji
+        if let existingIndex = project.messages[index].reactions.firstIndex(where: {
+            $0.userId == currentUser.id && $0.emoji == emoji
+        }) {
+            // Remove the reaction (toggle off)
+            project.messages[index].reactions.remove(at: existingIndex)
+        } else {
+            // Add the reaction
+            let reaction = MessageReaction(
+                emoji: emoji,
+                userId: currentUser.id,
+                userName: currentUser.displayFirstName
+            )
+            project.messages[index].reactions.append(reaction)
+        }
+
+        MockDataService.shared.updateProject(project)
+    }
+
+    func removeReaction(_ emoji: String, from message: Message) {
+        guard let index = project.messages.firstIndex(where: { $0.id == message.id }) else { return }
+
+        project.messages[index].reactions.removeAll {
+            $0.userId == currentUser.id && $0.emoji == emoji
+        }
+
+        MockDataService.shared.updateProject(project)
+    }
+
+    // MARK: - Unread Messages
+
+    /// Get unread message count for a specific task
+    func unreadCount(for task: DONEOTask) -> Int {
+        project.messages.filter { message in
+            message.referencedTask?.taskId == task.id &&
+            !message.isRead(by: currentUser.id)
+        }.count
+    }
+
+    /// Get unread message count for a specific subtask
+    func unreadCount(for subtask: Subtask, in task: DONEOTask) -> Int {
+        project.messages.filter { message in
+            message.referencedTask?.taskId == task.id &&
+            message.referencedSubtask?.subtaskId == subtask.id &&
+            !message.isRead(by: currentUser.id)
+        }.count
+    }
+
+    /// Check if task has any unread messages
+    func hasUnread(for task: DONEOTask) -> Bool {
+        unreadCount(for: task) > 0
+    }
+
+    /// Check if subtask has any unread messages
+    func hasUnread(for subtask: Subtask, in task: DONEOTask) -> Bool {
+        unreadCount(for: subtask, in: task) > 0
+    }
+
+    /// Mark all messages for a task as read by current user
+    func markAsRead(task: DONEOTask) {
+        var updated = false
+        for i in project.messages.indices {
+            if project.messages[i].referencedTask?.taskId == task.id &&
+               !project.messages[i].readBy.contains(currentUser.id) {
+                project.messages[i].readBy.insert(currentUser.id)
+                updated = true
+            }
+        }
+        if updated {
+            MockDataService.shared.updateProject(project)
+        }
+    }
+
+    /// Mark all messages for a subtask as read by current user
+    func markAsRead(subtask: Subtask, in task: DONEOTask) {
+        var updated = false
+        for i in project.messages.indices {
+            if project.messages[i].referencedTask?.taskId == task.id &&
+               project.messages[i].referencedSubtask?.subtaskId == subtask.id &&
+               !project.messages[i].readBy.contains(currentUser.id) {
+                project.messages[i].readBy.insert(currentUser.id)
+                updated = true
+            }
+        }
+        if updated {
+            MockDataService.shared.updateProject(project)
+        }
+    }
+
+    /// Total unread count across all tasks
+    var totalUnreadTaskMessages: Int {
+        project.messages.filter { message in
+            message.referencedTask != nil && !message.isRead(by: currentUser.id)
+        }.count
+    }
+
     // MARK: - Refresh from data service
 
     func refreshProject() {
