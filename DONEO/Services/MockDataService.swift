@@ -258,10 +258,26 @@ final class MockDataService {
             status: .pending,
             dueDate: today,
             subtasks: [
-                Subtask(title: "Get quotes from 3 suppliers", isDone: true, assignees: [maria]),
-                Subtask(title: "Compare prices and quality", isDone: true, assignees: [maria, james]),
-                Subtask(title: "Place order with selected vendor", isDone: false, assignees: [maria]),
-                Subtask(title: "Confirm delivery date", isDone: false)
+                Subtask(title: "Get quotes from 3 suppliers", isDone: true, assignees: [maria], createdBy: james),
+                Subtask(title: "Compare prices and quality", isDone: true, assignees: [maria, james], createdBy: james),
+                Subtask(title: "Place order with selected vendor", isDone: false, assignees: [maria], createdBy: james),
+                Subtask(title: "Confirm delivery date", isDone: false, createdBy: james)
+            ],
+            attachments: [
+                Attachment(
+                    type: .document,
+                    category: .reference,
+                    fileName: "Kitchen_Materials_List.pdf",
+                    fileSize: 245_000,
+                    uploadedBy: james
+                ),
+                Attachment(
+                    type: .image,
+                    category: .reference,
+                    fileName: "Kitchen_Blueprint.jpg",
+                    fileSize: 1_200_000,
+                    uploadedBy: james
+                )
             ],
             notes: """
             Contact: HomeDepot Pro Desk
@@ -276,7 +292,8 @@ final class MockDataService {
 
             Delivery address:
             742 Maple Street, Downtown
-            """
+            """,
+            createdBy: james
         )
         let task1_2 = DONEOTask(
             title: "Schedule electrical inspection",
@@ -284,9 +301,9 @@ final class MockDataService {
             status: .pending,
             dueDate: tomorrow,
             subtasks: [
-                Subtask(title: "Call inspector office", isDone: true, assignees: [alex]),
-                Subtask(title: "Prepare documentation", isDone: false, assignees: [james, alex]),
-                Subtask(title: "Clear access to electrical panel", isDone: false)
+                Subtask(title: "Call inspector office", isDone: true, assignees: [alex], createdBy: maria),
+                Subtask(title: "Prepare documentation", isDone: false, assignees: [james, alex], createdBy: maria),
+                Subtask(title: "Clear access to electrical panel", isDone: false, createdBy: maria)
             ],
             notes: """
             City Inspector: Bob Martinez
@@ -299,20 +316,63 @@ final class MockDataService {
 
             Inspector prefers morning appointments (8-10am)
             """,
+            createdBy: maria,
             acknowledgedBy: [alex.id] // Alex has accepted this task
         )
-        let task1_3 = DONEOTask(title: "Complete bathroom tiling", assignees: [james], status: .done)
-        let task1_4 = DONEOTask(
+        let task1_3 = DONEOTask(title: "Complete bathroom tiling", assignees: [james], status: .done, createdBy: alex)
+
+        // New task for Alex - painting
+        let task1_4_paint = DONEOTask(
+            title: "Paint living room walls",
+            assignees: [alex, james],
+            status: .pending,
+            dueDate: tomorrow,
+            subtasks: [
+                Subtask(title: "Buy paint supplies", isDone: true, assignees: [james], createdBy: maria),
+                Subtask(title: "Prep walls and tape edges", isDone: false, assignees: [alex], createdBy: maria),
+                Subtask(title: "Apply first coat", isDone: false, assignees: [alex, james], createdBy: maria),
+                Subtask(title: "Apply second coat", isDone: false, createdBy: maria)
+            ],
+            notes: "Color: Benjamin Moore Cloud White OC-130\n2 gallons needed",
+            createdBy: maria
+            // Not acknowledged by Alex yet - NEW task
+        )
+
+        let task1_5 = DONEOTask(
             title: "Install new windows",
-            assignees: [],
+            assignees: [alex],
             status: .pending,
             dueDate: nextWeek,
             subtasks: [
-                Subtask(title: "Measure all window frames", isDone: false, assignees: [james]),
-                Subtask(title: "Order custom windows", isDone: false, assignees: [maria, alex]),
-                Subtask(title: "Remove old windows", isDone: false),
-                Subtask(title: "Install new windows", isDone: false),
-                Subtask(title: "Seal and insulate", isDone: false)
+                Subtask(title: "Measure all window frames", isDone: false, assignees: [james], createdBy: james),
+                Subtask(title: "Order custom windows", isDone: false, assignees: [maria, alex], createdBy: james),
+                Subtask(title: "Remove old windows", isDone: false, createdBy: james),
+                Subtask(title: "Install new windows", isDone: false, createdBy: james),
+                Subtask(title: "Seal and insulate", isDone: false, createdBy: james)
+            ],
+            attachments: [
+                Attachment(
+                    type: .document,
+                    category: .reference,
+                    fileName: "Window_Specifications.pdf",
+                    fileSize: 890_000,
+                    uploadedBy: james
+                ),
+                Attachment(
+                    type: .image,
+                    category: .reference,
+                    fileName: "Window_Measurements_Photo.jpg",
+                    fileSize: 2_400_000,
+                    uploadedBy: james
+                ),
+                Attachment(
+                    type: .image,
+                    category: .work,
+                    fileName: "Old_Window_Removed.jpg",
+                    fileSize: 1_800_000,
+                    uploadedBy: alex,
+                    caption: "First window removed successfully"
+                )
             ],
             notes: """
             Window supplier: ClearView Glass Co.
@@ -323,7 +383,35 @@ final class MockDataService {
             Frame color: White vinyl
 
             Lead time: 2-3 weeks for custom sizes
-            """
+            """,
+            createdBy: james,
+            acknowledgedBy: [alex.id] // Alex acknowledged
+        )
+
+        // More tasks for Downtown Renovation
+        let task1_6 = DONEOTask(
+            title: "Fix leaking faucet in kitchen",
+            assignees: [alex],
+            status: .pending,
+            dueDate: today,
+            notes: "Client reported leak under sink. Check P-trap and connections.",
+            createdBy: maria,
+            acknowledgedBy: [alex.id]
+        )
+
+        let task1_7 = DONEOTask(
+            title: "Install cabinet hardware",
+            assignees: [alex],
+            status: .pending,
+            subtasks: [
+                Subtask(title: "Unpack all hardware", isDone: true, assignees: [alex], createdBy: james),
+                Subtask(title: "Mark drill positions", isDone: true, assignees: [alex], createdBy: james),
+                Subtask(title: "Install handles on upper cabinets", isDone: false, createdBy: james),
+                Subtask(title: "Install handles on lower cabinets", isDone: false, createdBy: james),
+                Subtask(title: "Install drawer pulls", isDone: false, createdBy: james)
+            ],
+            createdBy: james,
+            acknowledgedBy: [alex.id]
         )
 
         let task2_1 = DONEOTask(
@@ -332,10 +420,35 @@ final class MockDataService {
             status: .pending,
             dueDate: yesterday,
             subtasks: [
-                Subtask(title: "Check all rooms", isDone: true, assignees: [alex]),
-                Subtask(title: "Test electrical outlets", isDone: true),
-                Subtask(title: "Test plumbing", isDone: false, assignees: [alex, sarah]),
-                Subtask(title: "Document any issues", isDone: false, assignees: [sarah])
+                Subtask(title: "Check all rooms", isDone: true, assignees: [alex], createdBy: sarah),
+                Subtask(title: "Test electrical outlets", isDone: true, createdBy: sarah),
+                Subtask(title: "Test plumbing", isDone: false, assignees: [alex, sarah], createdBy: sarah),
+                Subtask(title: "Document any issues", isDone: false, assignees: [sarah], createdBy: sarah)
+            ],
+            attachments: [
+                Attachment(
+                    type: .document,
+                    category: .reference,
+                    fileName: "Walkthrough_Checklist.pdf",
+                    fileSize: 156_000,
+                    uploadedBy: sarah
+                ),
+                Attachment(
+                    type: .image,
+                    category: .work,
+                    fileName: "Living_Room_Complete.jpg",
+                    fileSize: 2_100_000,
+                    uploadedBy: alex,
+                    caption: "Living room inspection passed"
+                ),
+                Attachment(
+                    type: .image,
+                    category: .work,
+                    fileName: "Kitchen_Outlets_Test.jpg",
+                    fileSize: 1_900_000,
+                    uploadedBy: alex,
+                    caption: "All kitchen outlets working"
+                )
             ],
             notes: """
             Property: Smith Residence
@@ -349,9 +462,34 @@ final class MockDataService {
 
             Take photos of any issues found!
             """,
+            createdBy: sarah,
             acknowledgedBy: [alex.id] // Alex has accepted this task
         )
-        let task2_2 = DONEOTask(title: "Fix garage door", assignees: [sarah], status: .done)
+        let task2_2 = DONEOTask(title: "Fix garage door", assignees: [sarah], status: .done, createdBy: alex)
+
+        // New tasks for Smith Residence
+        let task2_3 = DONEOTask(
+            title: "Touch up paint in hallway",
+            assignees: [alex],
+            status: .pending,
+            dueDate: today,
+            notes: "Small scuffs near front door. Paint code: SW7015 Repose Gray",
+            createdBy: sarah
+            // NEW - not acknowledged
+        )
+
+        let task2_4 = DONEOTask(
+            title: "Replace smoke detector batteries",
+            assignees: [alex, sarah],
+            status: .pending,
+            subtasks: [
+                Subtask(title: "Check upstairs detectors", isDone: false, assignees: [alex], createdBy: sarah),
+                Subtask(title: "Check downstairs detectors", isDone: false, assignees: [sarah], createdBy: sarah),
+                Subtask(title: "Test all alarms", isDone: false, createdBy: sarah)
+            ],
+            createdBy: sarah,
+            acknowledgedBy: [alex.id, sarah.id]
+        )
 
         let task3_1 = DONEOTask(
             title: "Review blueprints",
@@ -359,10 +497,11 @@ final class MockDataService {
             status: .pending,
             dueDate: today,
             subtasks: [
-                Subtask(title: "Review structural plans", isDone: true, assignees: [mike]),
-                Subtask(title: "Check electrical layout", isDone: false, assignees: [alex, mike]),
-                Subtask(title: "Verify plumbing routes", isDone: false, assignees: [maria])
-            ]
+                Subtask(title: "Review structural plans", isDone: true, assignees: [mike], createdBy: alex),
+                Subtask(title: "Check electrical layout", isDone: false, assignees: [alex, mike], createdBy: alex),
+                Subtask(title: "Verify plumbing routes", isDone: false, assignees: [maria], createdBy: alex)
+            ],
+            createdBy: alex
         )
         let task3_2 = DONEOTask(
             title: "Order HVAC units",
@@ -403,14 +542,97 @@ final class MockDataService {
             """,
             createdBy: maria // Maria assigned this to Alex - NEW task needing acknowledgment
         )
-        let task3_4 = DONEOTask(title: "Complete foundation work", assignees: [mike], status: .done)
-        let task3_5 = DONEOTask(title: "Install plumbing rough-in", assignees: [], status: .pending, dueDate: tomorrow)
+        let task3_4 = DONEOTask(title: "Complete foundation work", assignees: [mike], status: .done, createdBy: alex)
+        let task3_5 = DONEOTask(title: "Install plumbing rough-in", assignees: [alex], status: .pending, dueDate: tomorrow, createdBy: mike)
 
-        let task4_1 = DONEOTask(title: "Service excavator", assignees: [james], status: .done)
-        let task4_2 = DONEOTask(title: "Replace drill bits", assignees: [mike], status: .done)
+        // More tasks for Office Building
+        let task3_6 = DONEOTask(
+            title: "Schedule concrete pour",
+            assignees: [alex],
+            status: .pending,
+            dueDate: nextWeek,
+            notes: "Need 15 cubic yards. Coordinate with pump truck.",
+            createdBy: mike,
+            acknowledgedBy: [alex.id]
+        )
 
-        let task5_1 = DONEOTask(title: "Send invoice", assignees: [alex], status: .pending, dueDate: yesterday, acknowledgedBy: [alex.id])
-        let task5_2 = DONEOTask(title: "Schedule follow-up meeting", assignees: [sarah], status: .pending, dueDate: tomorrow)
+        let task3_7 = DONEOTask(
+            title: "Order electrical panels",
+            assignees: [alex, maria],
+            status: .pending,
+            dueDate: today,
+            subtasks: [
+                Subtask(title: "Get quote from ElectroPro", isDone: true, assignees: [maria], createdBy: mike),
+                Subtask(title: "Confirm panel specs with engineer", isDone: false, assignees: [alex], createdBy: mike),
+                Subtask(title: "Place order", isDone: false, createdBy: mike)
+            ],
+            createdBy: mike
+            // NEW - Alex hasn't acknowledged
+        )
+
+        let task3_8 = DONEOTask(
+            title: "Update project timeline",
+            assignees: [alex],
+            status: .pending,
+            notes: "Client wants revised schedule by EOD Friday",
+            createdBy: maria
+            // NEW - not acknowledged
+        )
+
+        let task4_1 = DONEOTask(title: "Service excavator", assignees: [james], status: .done, createdBy: alex)
+        let task4_2 = DONEOTask(title: "Replace drill bits", assignees: [mike], status: .done, createdBy: alex)
+
+        // New tasks for Equipment Maintenance
+        let task4_3 = DONEOTask(
+            title: "Inspect safety harnesses",
+            assignees: [alex],
+            status: .pending,
+            dueDate: tomorrow,
+            notes: "Annual inspection due. Check all 8 harnesses.",
+            createdBy: james,
+            acknowledgedBy: [alex.id]
+        )
+
+        let task4_4 = DONEOTask(
+            title: "Order replacement blades",
+            assignees: [alex, mike],
+            status: .pending,
+            subtasks: [
+                Subtask(title: "Check inventory", isDone: true, assignees: [mike], createdBy: james),
+                Subtask(title: "Get quotes", isDone: false, assignees: [alex], createdBy: james),
+                Subtask(title: "Submit purchase order", isDone: false, createdBy: james)
+            ],
+            createdBy: james
+            // NEW - Alex hasn't acknowledged
+        )
+
+        let task5_1 = DONEOTask(title: "Send invoice", assignees: [alex], status: .pending, dueDate: yesterday, createdBy: sarah, acknowledgedBy: [alex.id])
+        let task5_2 = DONEOTask(title: "Schedule follow-up meeting", assignees: [sarah], status: .pending, dueDate: tomorrow, createdBy: alex)
+
+        // More tasks for ABC Corp
+        let task5_3 = DONEOTask(
+            title: "Prepare project closeout docs",
+            assignees: [alex],
+            status: .pending,
+            dueDate: nextWeek,
+            subtasks: [
+                Subtask(title: "Compile warranties", isDone: false, assignees: [alex], createdBy: sarah),
+                Subtask(title: "Gather as-built drawings", isDone: false, createdBy: sarah),
+                Subtask(title: "Write project summary", isDone: false, assignees: [sarah], createdBy: sarah)
+            ],
+            createdBy: sarah,
+            acknowledgedBy: [alex.id]
+        )
+
+        let task5_4 = DONEOTask(
+            title: "Review final punch list",
+            assignees: [alex],
+            status: .pending,
+            dueDate: today,
+            notes: "12 items remaining. Client walkthrough at 2pm.",
+            createdBy: sarah
+            // NEW - not acknowledged
+        )
 
         // Create mock attachments for projects
         let project1Attachments: [ProjectAttachment] = [
@@ -460,7 +682,7 @@ final class MockDataService {
                 fileSize: 156_000,
                 uploadedBy: alex,
                 uploadedAt: Calendar.current.date(byAdding: .hour, value: -2, to: today) ?? today,
-                linkedTaskId: task1_4.id
+                linkedTaskId: task1_5.id
             )
         ]
 
@@ -556,13 +778,13 @@ final class MockDataService {
             Project(
                 name: "Downtown Renovation",
                 members: [alex, maria, james],
-                tasks: [task1_1, task1_2, task1_3, task1_4],
+                tasks: [task1_1, task1_2, task1_3, task1_4_paint, task1_5, task1_6, task1_7],
                 messages: project1Messages,
                 attachments: project1Attachments,
                 unreadTaskIds: [
-                    alex.id: [task1_1.id, task1_3.id],  // Alex: task assigned to Maria, completed task
-                    maria.id: [task1_2.id],  // Maria: task assigned to Alex
-                    james.id: [task1_1.id, task1_2.id]  // James: other tasks
+                    alex.id: [task1_1.id, task1_3.id],
+                    maria.id: [task1_2.id],
+                    james.id: [task1_1.id, task1_2.id]
                 ],
                 lastActivity: Date(),
                 lastActivityPreview: "Maria: Can you check the measurements?"
@@ -570,17 +792,17 @@ final class MockDataService {
             Project(
                 name: "Smith Residence",
                 members: [alex, sarah],
-                tasks: [task2_1, task2_2],
+                tasks: [task2_1, task2_2, task2_3, task2_4],
                 messages: project2Messages,
                 attachments: project2Attachments,
-                unreadTaskIds: [:],  // No unread
+                unreadTaskIds: [:],
                 lastActivity: Calendar.current.date(byAdding: .hour, value: -2, to: Date()),
                 lastActivityPreview: "Completed: Fix garage door"
             ),
             Project(
                 name: "Office Building - Phase 2",
                 members: [alex, maria, mike],
-                tasks: [task3_1, task3_2, task3_3, task3_4, task3_5],
+                tasks: [task3_1, task3_2, task3_3, task3_4, task3_5, task3_6, task3_7, task3_8],
                 messages: project3Messages,
                 attachments: project3Attachments,
                 unreadTaskIds: [
@@ -594,21 +816,21 @@ final class MockDataService {
             Project(
                 name: "Equipment Maintenance",
                 members: [alex, james, mike],
-                tasks: [task4_1, task4_2],
+                tasks: [task4_1, task4_2, task4_3, task4_4],
                 messages: [],
                 attachments: [],
-                unreadTaskIds: [:],  // No unread
+                unreadTaskIds: [:],
                 lastActivity: Calendar.current.date(byAdding: .day, value: -1, to: Date()),
                 lastActivityPreview: "Completed: Replace drill bits"
             ),
             Project(
                 name: "Client: ABC Corp",
                 members: [alex, sarah],
-                tasks: [task5_1, task5_2],
+                tasks: [task5_1, task5_2, task5_3, task5_4],
                 messages: [],
                 attachments: project5Attachments,
                 unreadTaskIds: [
-                    alex.id: [task5_2.id]  // Alex: Sarah's task
+                    alex.id: [task5_2.id]
                 ],
                 lastActivity: Calendar.current.date(byAdding: .hour, value: -5, to: Date()),
                 lastActivityPreview: "Sarah: Invoice is ready for review"

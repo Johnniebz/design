@@ -118,9 +118,15 @@ enum AttachmentType: String, Hashable {
     case video
 }
 
+enum AttachmentCategory: String, Hashable {
+    case reference  // Files added as part of task instructions (specs, blueprints, reference photos)
+    case work       // Files uploaded by workers (progress photos, completion photos, invoices)
+}
+
 struct Attachment: Identifiable, Hashable {
     let id: UUID
     let type: AttachmentType
+    let category: AttachmentCategory
     let fileName: String
     let fileSize: Int64 // bytes
     let uploadedBy: User
@@ -128,20 +134,24 @@ struct Attachment: Identifiable, Hashable {
     let thumbnailURL: URL? // For images/videos
     let fileURL: URL?
     let linkedSubtaskId: UUID? // Optional link to a specific subtask
+    let caption: String? // Optional description (mainly for work uploads)
 
     init(
         id: UUID = UUID(),
         type: AttachmentType,
+        category: AttachmentCategory = .reference,
         fileName: String,
         fileSize: Int64 = 0,
         uploadedBy: User,
         uploadedAt: Date = Date(),
         thumbnailURL: URL? = nil,
         fileURL: URL? = nil,
-        linkedSubtaskId: UUID? = nil
+        linkedSubtaskId: UUID? = nil,
+        caption: String? = nil
     ) {
         self.id = id
         self.type = type
+        self.category = category
         self.fileName = fileName
         self.fileSize = fileSize
         self.uploadedBy = uploadedBy
@@ -149,6 +159,7 @@ struct Attachment: Identifiable, Hashable {
         self.thumbnailURL = thumbnailURL
         self.fileURL = fileURL
         self.linkedSubtaskId = linkedSubtaskId
+        self.caption = caption
     }
 
     var fileSizeFormatted: String {
