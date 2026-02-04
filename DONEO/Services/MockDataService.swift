@@ -251,6 +251,48 @@ final class MockDataService {
             )
         ]
 
+        let project4Messages: [Message] = [
+            Message(
+                content: "The drills need urgent maintenance",
+                sender: james,
+                timestamp: Calendar.current.date(byAdding: .day, value: -2, to: today) ?? today,
+                isFromCurrentUser: false
+            ),
+            Message(
+                content: "I already ordered replacement bits",
+                sender: mike,
+                timestamp: Calendar.current.date(byAdding: .day, value: -1, to: today) ?? today,
+                isFromCurrentUser: false
+            ),
+            Message(
+                content: "Perfect, the bits arrived today",
+                sender: alex,
+                timestamp: Calendar.current.date(byAdding: .hour, value: -8, to: today) ?? today,
+                isFromCurrentUser: true
+            )
+        ]
+
+        let project5Messages: [Message] = [
+            Message(
+                content: "Project is going great, client is happy",
+                sender: alex,
+                timestamp: Calendar.current.date(byAdding: .day, value: -1, to: today) ?? today,
+                isFromCurrentUser: true
+            ),
+            Message(
+                content: "We need to send the final invoice this week",
+                sender: sarah,
+                timestamp: Calendar.current.date(byAdding: .hour, value: -8, to: today) ?? today,
+                isFromCurrentUser: false
+            ),
+            Message(
+                content: "Invoice is ready for review",
+                sender: sarah,
+                timestamp: Calendar.current.date(byAdding: .hour, value: -5, to: today) ?? today,
+                isFromCurrentUser: false
+            )
+        ]
+
         // Create tasks with known IDs for notification tracking
         let task1_1 = DONEOTask(
             title: "Order materials for kitchen",
@@ -817,7 +859,7 @@ final class MockDataService {
                 name: "Equipment Maintenance",
                 members: [alex, james, mike],
                 tasks: [task4_1, task4_2, task4_3, task4_4],
-                messages: [],
+                messages: project4Messages,
                 attachments: [],
                 unreadTaskIds: [:],
                 lastActivity: Calendar.current.date(byAdding: .day, value: -1, to: Date()),
@@ -827,7 +869,7 @@ final class MockDataService {
                 name: "Client: ABC Corp",
                 members: [alex, sarah],
                 tasks: [task5_1, task5_2, task5_3, task5_4],
-                messages: [],
+                messages: project5Messages,
                 attachments: project5Attachments,
                 unreadTaskIds: [
                     alex.id: [task5_2.id]
