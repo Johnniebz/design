@@ -116,6 +116,7 @@ enum AttachmentType: String, Hashable {
     case image
     case document
     case video
+    case contact
 }
 
 enum AttachmentCategory: String, Hashable {
@@ -189,6 +190,8 @@ struct Attachment: Identifiable, Hashable {
             default:
                 return "paperclip"
             }
+        case .contact:
+            return "person.crop.circle.fill"
         }
     }
 }

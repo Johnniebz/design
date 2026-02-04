@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct TaskDrawerDetailView: View {
     let task: DONEOTask
@@ -180,55 +181,110 @@ struct TaskDrawerDetailView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Subtasks List
+    // MARK: - Subtasks List (split into Pending/Completed like Tasks screen)
+
+    private var pendingSubtasks: [Subtask] {
+        currentTask.subtasks.filter { !$0.isDone }
+    }
+
+    private var completedSubtasks: [Subtask] {
+        currentTask.subtasks.filter { $0.isDone }
+    }
 
     private var subtasksList: some View {
         List {
-            ForEach(currentTask.subtasks) { subtask in
-                DrawerSubtaskRow(
-                    subtask: subtask,
-                    task: currentTask,
-                    viewModel: viewModel,
-                    onQuote: {
-                        viewModel.quoteSubtask(currentTask, subtask: subtask)
-                        dismiss()
+            // Pending section
+            if !pendingSubtasks.isEmpty {
+                Section {
+                    ForEach(pendingSubtasks) { subtask in
+                        DrawerSubtaskRow(
+                            subtask: subtask,
+                            task: currentTask,
+                            viewModel: viewModel,
+                            onQuote: {
+                                viewModel.quoteSubtask(currentTask, subtask: subtask)
+                                dismiss()
+                            }
+                        )
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                viewModel.deleteSubtask(from: currentTask, subtask: subtask)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+
+                            Button {
+                                viewModel.quoteSubtask(currentTask, subtask: subtask)
+                                dismiss()
+                            } label: {
+                                Label("Quote", systemImage: "quote.bubble")
+                            }
+                            .tint(Theme.primary)
+                        }
                     }
-                )
+                } header: {
+                    Text("Pending (\(pendingSubtasks.count))")
+                }
             }
-            .onDelete { indexSet in
-                for index in indexSet {
-                    let subtask = currentTask.subtasks[index]
-                    viewModel.deleteSubtask(from: currentTask, subtask: subtask)
+
+            // Completed section
+            if !completedSubtasks.isEmpty {
+                Section {
+                    ForEach(completedSubtasks) { subtask in
+                        DrawerSubtaskRow(
+                            subtask: subtask,
+                            task: currentTask,
+                            viewModel: viewModel,
+                            onQuote: {
+                                viewModel.quoteSubtask(currentTask, subtask: subtask)
+                                dismiss()
+                            }
+                        )
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                viewModel.deleteSubtask(from: currentTask, subtask: subtask)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+
+                            Button {
+                                viewModel.quoteSubtask(currentTask, subtask: subtask)
+                                dismiss()
+                            } label: {
+                                Label("Quote", systemImage: "quote.bubble")
+                            }
+                            .tint(Theme.primary)
+                        }
+                    }
+                } header: {
+                    Text("Completed (\(completedSubtasks.count))")
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
     }
 
-    // MARK: - Add Subtask Section
+    // MARK: - Add Subtask Button (red button like Add Task)
 
     private var addSubtaskSection: some View {
         VStack(spacing: 0) {
-            Divider()
-
             Button {
                 showingAddSubtask = true
             } label: {
-                HStack(spacing: 12) {
+                HStack {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(Theme.primary)
-
-                    Text("Add a subtask...")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-
-                    Spacer()
+                        .font(.system(size: 18))
+                    Text("Add Subtask")
+                        .font(.system(size: 16, weight: .semibold))
                 }
-                .padding()
-                .background(Color(uiColor: .systemBackground))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Theme.primary)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .buttonStyle(.plain)
+            .padding()
+            .background(Color(uiColor: .systemGroupedBackground))
         }
         .sheet(isPresented: $showingAddSubtask) {
             AddSubtaskSheet(task: currentTask, viewModel: viewModel)
@@ -236,7 +292,7 @@ struct TaskDrawerDetailView: View {
     }
 }
 
-// MARK: - Drawer Subtask Row
+// MARK: - Drawer Subtask Row (matches Task row style - no chevron)
 
 struct DrawerSubtaskRow: View {
     let subtask: Subtask
@@ -250,6 +306,11 @@ struct DrawerSubtaskRow: View {
         viewModel.canToggleSubtask(subtask)
     }
 
+    // Get attachments linked to this subtask
+    private var subtaskAttachments: [Attachment] {
+        task.attachments.filter { $0.linkedSubtaskId == subtask.id }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             // Checkbox
@@ -259,91 +320,104 @@ struct DrawerSubtaskRow: View {
                 }
             } label: {
                 Image(systemName: subtask.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
+                    .font(.system(size: 24))
                     .foregroundStyle(subtask.isDone ? .green : (canToggle ? .secondary : .secondary.opacity(0.3)))
             }
             .buttonStyle(.plain)
             .disabled(!canToggle)
 
-            // Subtask info
+            // Subtask info - tappable for details
             Button {
                 showingDetail = true
             } label: {
                 VStack(alignment: .leading, spacing: 4) {
+                    // Title
                     Text(subtask.title)
-                        .font(.system(size: 15))
+                        .font(.system(size: 16))
                         .strikethrough(subtask.isDone)
                         .foregroundStyle(subtask.isDone ? .secondary : .primary)
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
 
-                    // Description preview
-                    if let description = subtask.description, !description.isEmpty {
-                        Text(description)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    // Assignees
-                    if !subtask.assignees.isEmpty {
-                        HStack(spacing: 4) {
-                            HStack(spacing: -4) {
-                                ForEach(subtask.assignees.prefix(3)) { assignee in
-                                    Circle()
-                                        .fill(Theme.primaryLight)
-                                        .frame(width: 18, height: 18)
-                                        .overlay {
-                                            Text(assignee.avatarInitials)
-                                                .font(.system(size: 7, weight: .medium))
-                                                .foregroundStyle(Theme.primary)
-                                        }
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color(uiColor: .systemBackground), lineWidth: 1)
-                                        )
+                    // Info row: assignees, due date, attachments
+                    HStack(spacing: 8) {
+                        // Assignees
+                        if !subtask.assignees.isEmpty {
+                            HStack(spacing: 4) {
+                                HStack(spacing: -4) {
+                                    ForEach(subtask.assignees.prefix(2)) { assignee in
+                                        Circle()
+                                            .fill(Theme.primaryLight)
+                                            .frame(width: 18, height: 18)
+                                            .overlay {
+                                                Text(assignee.avatarInitials)
+                                                    .font(.system(size: 7, weight: .medium))
+                                                    .foregroundStyle(Theme.primary)
+                                            }
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color(uiColor: .systemBackground), lineWidth: 1)
+                                            )
+                                    }
                                 }
+                                let names = subtask.assignees.prefix(2).map { $0.displayFirstName }
+                                let displayText = subtask.assignees.count > 2
+                                    ? "\(names.joined(separator: ", ")) +\(subtask.assignees.count - 2)"
+                                    : names.joined(separator: ", ")
+                                Text(displayText)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
                             }
-                            let names = subtask.assignees.prefix(2).map { $0.displayFirstName }
-                            let displayText = subtask.assignees.count > 2
-                                ? "\(names.joined(separator: ", ")) +\(subtask.assignees.count - 2)"
-                                : names.joined(separator: ", ")
-                            Text(displayText)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                        }
+
+                        // Due date
+                        if let dueDate = subtask.dueDate {
+                            HStack(spacing: 3) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 10))
+                                Text(formatDueDate(dueDate))
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(subtask.isOverdue ? .red : .secondary)
+                        }
+
+                        // Attachments count
+                        if !subtaskAttachments.isEmpty {
+                            HStack(spacing: 3) {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: 10))
+                                Text("\(subtaskAttachments.count)")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(.secondary)
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
 
-            Spacer()
-
-            // Chevron
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+            // NO chevron - subtasks don't have sub-items
         }
-        .padding(.vertical, 6)
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button(role: .destructive) {
-                viewModel.deleteSubtask(from: task, subtask: subtask)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-
-            Button {
-                onQuote()
-            } label: {
-                Label("Quote", systemImage: "quote.bubble")
-            }
-            .tint(Theme.primary)
-        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
         .sheet(isPresented: $showingDetail) {
             DrawerSubtaskDetailSheet(
                 subtask: subtask,
                 task: task,
                 viewModel: viewModel
             )
+        }
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
         }
     }
 }
@@ -770,8 +844,18 @@ struct AddSubtaskSheet: View {
     @State private var showingDatePicker = false
     @FocusState private var focusedField: Field?
 
+    // Attachment fields
+    @State private var selectedPhotos: [PhotosPickerItem] = []
+    @State private var attachments: [SubtaskAttachment] = []
+
     enum Field: Hashable {
         case title, description
+    }
+
+    struct SubtaskAttachment: Identifiable {
+        let id = UUID()
+        var type: AttachmentType
+        var fileName: String
     }
 
     // Assignees are limited to people assigned to the parent task
@@ -901,11 +985,50 @@ struct AddSubtaskSheet: View {
                         }
                     }
 
-                    // Notes/Instructions
+                    // Notes/Instructions with attachment icon
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Notes")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
+                        HStack {
+                            Text("Notes")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+
+                            // Attachment menu in notes header
+                            Menu {
+                                PhotosPicker(
+                                    selection: $selectedPhotos,
+                                    maxSelectionCount: 10,
+                                    matching: .images
+                                ) {
+                                    Label("Photos", systemImage: "photo")
+                                }
+
+                                Button {
+                                    let fileName = "Document_\(attachments.count + 1).pdf"
+                                    attachments.append(SubtaskAttachment(type: .document, fileName: fileName))
+                                } label: {
+                                    Label("Files", systemImage: "doc")
+                                }
+
+                                Button {
+                                    let contactName = "Contact_\(attachments.count + 1).vcf"
+                                    attachments.append(SubtaskAttachment(type: .contact, fileName: contactName))
+                                } label: {
+                                    Label("Contacts", systemImage: "person.crop.circle")
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "paperclip")
+                                        .font(.system(size: 14))
+                                    if !attachments.isEmpty {
+                                        Text("\(attachments.count)")
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                }
+                                .foregroundStyle(attachments.isEmpty ? .secondary : Theme.primary)
+                            }
+                        }
 
                         TextField("Add details, instructions, or context...", text: $description, axis: .vertical)
                             .font(.system(size: 15))
@@ -914,43 +1037,22 @@ struct AddSubtaskSheet: View {
                             .background(Color(uiColor: .secondarySystemBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .focused($focusedField, equals: .description)
-                    }
 
-                    // Attachments
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Attachments")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            Spacer()
-
-                            Button {
-                                // TODO: Add attachment
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.system(size: 14))
-                                    Text("Add")
-                                        .font(.system(size: 14, weight: .medium))
+                        // Show attachments inline only when added
+                        if !attachments.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(attachments) { attachment in
+                                        SubtaskAttachmentChip(
+                                            attachment: attachment,
+                                            onRemove: {
+                                                attachments.removeAll { $0.id == attachment.id }
+                                            }
+                                        )
+                                    }
                                 }
-                                .foregroundStyle(Theme.primary)
                             }
                         }
-
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(uiColor: .secondarySystemBackground))
-                            .frame(height: 80)
-                            .overlay {
-                                VStack(spacing: 6) {
-                                    Image(systemName: "photo.on.rectangle")
-                                        .font(.system(size: 24))
-                                        .foregroundStyle(.tertiary)
-                                    Text("Photos, documents, and files")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.tertiary)
-                                }
-                            }
                     }
                 }
                 .padding()
@@ -973,6 +1075,17 @@ struct AddSubtaskSheet: View {
             }
             .onAppear {
                 focusedField = .title
+            }
+            .onChange(of: selectedPhotos) { _, newItems in
+                Task {
+                    for item in newItems {
+                        if let _ = try? await item.loadTransferable(type: Data.self) {
+                            let fileName = "Photo_\(attachments.count + 1).jpg"
+                            attachments.append(SubtaskAttachment(type: .image, fileName: fileName))
+                        }
+                    }
+                    selectedPhotos = []
+                }
             }
         }
     }
@@ -1241,12 +1354,18 @@ struct TaskInfoSheet: View {
                         }
                     }
 
-                    // Attachments placeholder
+                    // Attachments section
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Attachments")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(.secondary)
+
+                            if !task.attachments.isEmpty {
+                                Text("(\(task.attachments.count))")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.tertiary)
+                            }
 
                             Spacer()
 
@@ -1265,19 +1384,28 @@ struct TaskInfoSheet: View {
                             }
                         }
 
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(uiColor: .secondarySystemBackground))
-                            .frame(height: 80)
-                            .overlay {
-                                VStack(spacing: 6) {
-                                    Image(systemName: "doc.badge.plus")
-                                        .font(.system(size: 24))
-                                        .foregroundStyle(.tertiary)
-                                    Text("Photos, documents, and files")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.tertiary)
+                        if task.attachments.isEmpty {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(uiColor: .secondarySystemBackground))
+                                .frame(height: 80)
+                                .overlay {
+                                    VStack(spacing: 6) {
+                                        Image(systemName: "doc.badge.plus")
+                                            .font(.system(size: 24))
+                                            .foregroundStyle(.tertiary)
+                                        Text("No attachments")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                        } else {
+                            // Display attachments in a grid
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
+                                ForEach(task.attachments) { attachment in
+                                    TaskAttachmentCard(attachment: attachment)
                                 }
                             }
+                        }
                     }
 
                     // Created by section
@@ -1364,6 +1492,108 @@ struct TaskInfoSheet: View {
             return "Yesterday"
         } else {
             return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - Task Attachment Card
+
+struct TaskAttachmentCard: View {
+    let attachment: Attachment
+
+    var body: some View {
+        VStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .frame(height: 80)
+                .overlay {
+                    VStack(spacing: 4) {
+                        Image(systemName: iconForType)
+                            .font(.system(size: 28))
+                            .foregroundStyle(colorForType)
+
+                        Text(attachment.type.rawValue.capitalized)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+            VStack(spacing: 2) {
+                Text(attachment.fileName)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(attachment.fileSizeFormatted)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private var iconForType: String {
+        switch attachment.type {
+        case .image: return "photo.fill"
+        case .document: return "doc.fill"
+        case .video: return "video.fill"
+        case .contact: return "person.crop.circle.fill"
+        }
+    }
+
+    private var colorForType: Color {
+        switch attachment.type {
+        case .image: return .blue
+        case .document: return .orange
+        case .video: return .purple
+        case .contact: return .green
+        }
+    }
+}
+
+// MARK: - Subtask Attachment Chip (compact inline display)
+
+struct SubtaskAttachmentChip: View {
+    let attachment: AddSubtaskSheet.SubtaskAttachment
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: iconForType)
+                .font(.system(size: 12))
+                .foregroundStyle(colorForType)
+
+            Text(attachment.fileName)
+                .font(.system(size: 12))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color(uiColor: .tertiarySystemBackground))
+        .clipShape(Capsule())
+    }
+
+    private var iconForType: String {
+        switch attachment.type {
+        case .image: return "photo.fill"
+        case .document: return "doc.fill"
+        case .video: return "video.fill"
+        case .contact: return "person.crop.circle.fill"
+        }
+    }
+
+    private var colorForType: Color {
+        switch attachment.type {
+        case .image: return .blue
+        case .document: return .orange
+        case .video: return .purple
+        case .contact: return .green
         }
     }
 }

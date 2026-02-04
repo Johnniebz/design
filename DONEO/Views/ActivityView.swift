@@ -121,6 +121,7 @@ final class ActivityViewModel {
             case .image: return "photo.fill"
             case .video: return "video.fill"
             case .document: return "doc.fill"
+            case .contact: return "person.crop.circle.fill"
             }
         }
 

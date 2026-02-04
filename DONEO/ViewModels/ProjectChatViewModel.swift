@@ -203,6 +203,44 @@ final class ProjectChatViewModel {
         selectedAssigneeIds = []
     }
 
+    func addTaskWithAttachments(title: String, assignees: [User] = [], subtasks: [Subtask] = [], dueDate: Date? = nil, notes: String? = nil, attachments: [Attachment] = []) {
+        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        let task = DONEOTask(
+            title: title,
+            assignees: assignees,
+            status: .pending,
+            dueDate: dueDate,
+            subtasks: subtasks,
+            attachments: attachments,
+            notes: notes,
+            createdBy: currentUser
+        )
+        project.tasks.append(task)
+
+        // Add system message
+        var systemContent = "created task \"\(title)\""
+        if !attachments.isEmpty {
+            systemContent += " with \(attachments.count) attachment\(attachments.count == 1 ? "" : "s")"
+        }
+        let message = Message(
+            content: systemContent,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: TaskReference(task: task)
+        )
+        project.messages.append(message)
+
+        // Update project's last activity
+        project.lastActivity = Date()
+        project.lastActivityPreview = "New task: \(title)"
+
+        MockDataService.shared.updateProject(project)
+
+        newTaskTitle = ""
+        selectedAssigneeIds = []
+    }
+
     func toggleTaskStatus(_ task: DONEOTask) {
         guard let index = project.tasks.firstIndex(where: { $0.id == task.id }) else { return }
         project.tasks[index].status = project.tasks[index].status == .pending ? .done : .pending

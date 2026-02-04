@@ -572,6 +572,30 @@ struct ProjectMessageBubble: View {
                     : Color(uiColor: .systemGray4)
             )
             .clipShape(RoundedRectangle(cornerRadius: 10))
+
+        case .contact:
+            // Contact attachment
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.8) : .green)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Contact")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(attachment.fileName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(message.isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(10)
+            .background(
+                message.isFromCurrentUser
+                    ? Color.white.opacity(0.15)
+                    : Color(uiColor: .systemGray4)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 }

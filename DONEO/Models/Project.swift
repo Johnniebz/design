@@ -66,6 +66,8 @@ struct ProjectAttachment: Identifiable, Hashable {
             default:
                 return "paperclip"
             }
+        case .contact:
+            return "person.crop.circle.fill"
         }
     }
 }
