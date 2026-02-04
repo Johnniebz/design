@@ -218,6 +218,66 @@ final class ActivityViewModel {
         myTasksByProject.reduce(0) { $0 + $1.newTasksCount }
     }
 
+    // MARK: - Active Tasks (acknowledged only, grouped by project)
+
+    var activeTasksByProject: [ProjectTaskGroup] {
+        var groups: [ProjectTaskGroup] = []
+
+        for project in dataService.projects {
+            // Only pending tasks assigned to current user that are acknowledged
+            let activeTasks = project.tasks.filter { task in
+                task.status == .pending &&
+                task.assignees.contains(where: { $0.id == currentUser.id }) &&
+                task.isAcknowledged(by: currentUser.id) // Only acknowledged tasks
+            }
+
+            if !activeTasks.isEmpty {
+                let taskItems = activeTasks.map { task -> TaskItem in
+                    let doneSubtasks = task.subtasks.filter { $0.isDone }.count
+                    let totalSubtasks = task.subtasks.count
+                    let subtaskItems = task.subtasks.map { SubtaskItem(id: $0.id, title: $0.title, isDone: $0.isDone, description: $0.description, dueDate: $0.dueDate, createdBy: $0.createdBy, createdAt: $0.createdAt) }
+                    let refAttachments = task.attachments.filter { $0.category == .reference }.map {
+                        AttachmentItem(id: $0.id, type: $0.type, category: $0.category, fileName: $0.fileName, fileSize: $0.fileSize, uploadedByName: $0.uploadedBy.name, uploadedAt: $0.uploadedAt, caption: $0.caption)
+                    }
+                    let workAttachments = task.attachments.filter { $0.category == .work }.map {
+                        AttachmentItem(id: $0.id, type: $0.type, category: $0.category, fileName: $0.fileName, fileSize: $0.fileSize, uploadedByName: $0.uploadedBy.name, uploadedAt: $0.uploadedAt, caption: $0.caption)
+                    }
+                    return TaskItem(
+                        id: task.id,
+                        title: task.title,
+                        dueDate: task.dueDate,
+                        isOverdue: task.isOverdue,
+                        isDueToday: task.isDueToday,
+                        subtaskProgress: totalSubtasks > 0 ? (doneSubtasks, totalSubtasks) : nil,
+                        subtasks: subtaskItems,
+                        referenceAttachments: refAttachments,
+                        workAttachments: workAttachments,
+                        projectId: project.id,
+                        createdBy: task.createdBy,
+                        createdAt: task.createdAt,
+                        isNew: false, // All are acknowledged
+                        createdByName: task.createdBy?.displayFirstName
+                    )
+                }
+                // Sort by due date
+                let sortedTasks = taskItems.sorted { t1, t2 in
+                    if let d1 = t1.dueDate, let d2 = t2.dueDate { return d1 < d2 }
+                    if t1.dueDate != nil { return true }
+                    return false
+                }
+
+                groups.append(ProjectTaskGroup(
+                    id: project.id,
+                    projectName: project.name,
+                    projectId: project.id,
+                    tasks: sortedTasks
+                ))
+            }
+        }
+
+        return groups
+    }
+
     // MARK: - Done Tasks (grouped by project)
 
     var doneTasksByProject: [ProjectTaskGroup] {
@@ -405,7 +465,8 @@ final class ActivityViewModel {
 // MARK: - Activity Tab
 
 enum ActivityTab: String, CaseIterable {
-    case myTasks = "My Tasks"
+    case new = "New"
+    case active = "Active"
     case done = "Done"
 }
 
@@ -414,13 +475,14 @@ enum ActivityTab: String, CaseIterable {
 struct ActivityView: View {
     @State private var viewModel = ActivityViewModel()
     @State private var navigationPath = NavigationPath()
-    @State private var selectedTab: ActivityTab = .myTasks
+    @State private var selectedTab: ActivityTab = .new
     @State private var selectedNewTask: ActivityViewModel.NewTaskItem?
     @State private var showTaskDetailSheet = false
     @State private var selectedMyTask: (task: ActivityViewModel.TaskItem, group: ActivityViewModel.ProjectTaskGroup)?
     @State private var showMyTaskDetailSheet = false
     @State private var selectedSubtask: (subtask: ActivityViewModel.SubtaskItem, taskTitle: String, projectName: String, projectId: UUID, taskId: UUID)?
     @State private var showSubtaskDetailSheet = false
+    @State private var highlightedTaskId: UUID? // For highlighting newly accepted task
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -433,8 +495,11 @@ struct ActivityView: View {
 
                 // Tab content
                 TabView(selection: $selectedTab) {
-                    myTasksTab
-                        .tag(ActivityTab.myTasks)
+                    newTasksTab
+                        .tag(ActivityTab.new)
+
+                    activeTasksTab
+                        .tag(ActivityTab.active)
 
                     doneTasksTab
                         .tag(ActivityTab.done)
@@ -458,6 +523,22 @@ struct ActivityView: View {
                             switch action {
                             case .accept:
                                 viewModel.acceptTask(projectId: task.projectId, taskId: task.taskId, message: message)
+                                // Switch to Active tab and highlight the task
+                                showTaskDetailSheet = false
+                                selectedNewTask = nil
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        selectedTab = .active
+                                        highlightedTaskId = task.taskId
+                                    }
+                                    // Remove highlight after 2 seconds
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                        withAnimation(.easeOut(duration: 0.5)) {
+                                            highlightedTaskId = nil
+                                        }
+                                    }
+                                }
+                                return
                             case .decline:
                                 viewModel.declineTask(projectId: task.projectId, taskId: task.taskId, reason: message ?? "I can't take this on")
                             case .ask:
@@ -569,29 +650,16 @@ struct ActivityView: View {
                             Text(tab.rawValue)
                                 .font(.system(size: 15, weight: selectedTab == tab ? .semibold : .medium))
 
-                            // Badge count - show new count for myTasks tab
-                            if tab == .myTasks {
-                                let newCount = viewModel.totalNewTasksCount
-                                if newCount > 0 {
-                                    Text("\(newCount) new")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Theme.primary)
-                                        .clipShape(Capsule())
-                                }
-                            } else {
-                                let count = countForTab(tab)
-                                if count > 0 {
-                                    Text("\(count)")
-                                        .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(selectedTab == tab ? .white : .secondary)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(selectedTab == tab ? colorForTab(tab) : Color(uiColor: .tertiarySystemFill))
-                                        .clipShape(Capsule())
-                                }
+                            // Badge count
+                            let count = countForTab(tab)
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(selectedTab == tab ? .white : .secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(selectedTab == tab ? colorForTab(tab) : Color(uiColor: .tertiarySystemFill))
+                                    .clipShape(Capsule())
                             }
                         }
                         .foregroundStyle(selectedTab == tab ? colorForTab(tab) : .secondary)
@@ -612,50 +680,76 @@ struct ActivityView: View {
 
     private func countForTab(_ tab: ActivityTab) -> Int {
         switch tab {
-        case .myTasks: return viewModel.myTasksByProject.flatMap { $0.tasks }.count
+        case .new: return viewModel.newTasksCount
+        case .active: return viewModel.activeTasksByProject.flatMap { $0.tasks }.count
         case .done: return viewModel.doneTasksByProject.flatMap { $0.tasks }.count
         }
     }
 
     private func colorForTab(_ tab: ActivityTab) -> Color {
         switch tab {
-        case .myTasks: return Theme.primary
+        case .new: return Theme.primary
+        case .active: return .orange
         case .done: return .green
         }
     }
 
-    // MARK: - My Tasks Tab (combined new + active)
+    // MARK: - New Tasks Tab
 
-    private var myTasksTab: some View {
+    private var newTasksTab: some View {
         ScrollView {
-            if viewModel.myTasksByProject.isEmpty {
+            if viewModel.newTasksByProject.isEmpty {
                 emptyStateView(
-                    icon: "checkmark.circle",
-                    title: "All caught up!",
-                    subtitle: "No tasks assigned to you right now"
+                    icon: "bell.slash",
+                    title: "No new tasks",
+                    subtitle: "New task assignments will appear here"
                 )
             } else {
                 VStack(spacing: 16) {
-                    ForEach(viewModel.myTasksByProject) { group in
-                        MyTasksGroupView(
+                    ForEach(viewModel.newTasksByProject) { group in
+                        NewTaskGroupView(
                             group: group,
+                            onTap: { task in
+                                selectedNewTask = task
+                                showTaskDetailSheet = true
+                            },
+                            onProjectTap: {
+                                navigationPath.append(group.projectId)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 20)
+            }
+        }
+    }
+
+    // MARK: - Active Tasks Tab
+
+    private var activeTasksTab: some View {
+        ScrollView {
+            if viewModel.activeTasksByProject.isEmpty {
+                emptyStateView(
+                    icon: "checkmark.circle",
+                    title: "All caught up!",
+                    subtitle: "No active tasks assigned to you"
+                )
+            } else {
+                VStack(spacing: 16) {
+                    ForEach(viewModel.activeTasksByProject) { group in
+                        ProjectTaskGroupView(
+                            group: group,
+                            showCheckbox: true,
+                            isDoneStyle: false,
+                            highlightedTaskId: highlightedTaskId,
                             onToggle: { taskId in
                                 withAnimation(.spring(response: 0.3)) {
                                     viewModel.toggleTask(projectId: group.projectId, taskId: taskId)
                                 }
                             },
-                            onTap: { task in
-                                if task.isNew {
-                                    // Show accept/decline sheet for new tasks
-                                    let newTaskItem = viewModel.newTasksByProject
-                                        .flatMap { $0.tasks }
-                                        .first { $0.taskId == task.id }
-                                    if let newTask = newTaskItem {
-                                        selectedNewTask = newTask
-                                        showTaskDetailSheet = true
-                                    }
-                                } else {
-                                    // Show task detail sheet for active tasks
+                            onTap: { taskId in
+                                if let task = group.tasks.first(where: { $0.id == taskId }) {
                                     selectedMyTask = (task: task, group: group)
                                     showMyTaskDetailSheet = true
                                 }
@@ -903,6 +997,7 @@ struct ProjectTaskGroupView: View {
     let group: ActivityViewModel.ProjectTaskGroup
     var showCheckbox: Bool = true
     var isDoneStyle: Bool = false
+    var highlightedTaskId: UUID? = nil
     let onToggle: (UUID) -> Void
     let onTap: (UUID) -> Void
     let onProjectTap: () -> Void
@@ -914,6 +1009,7 @@ struct ProjectTaskGroupView: View {
     init(group: ActivityViewModel.ProjectTaskGroup,
          showCheckbox: Bool = true,
          isDoneStyle: Bool = false,
+         highlightedTaskId: UUID? = nil,
          onToggle: @escaping (UUID) -> Void,
          onTap: @escaping (UUID) -> Void,
          onProjectTap: @escaping () -> Void,
@@ -922,6 +1018,7 @@ struct ProjectTaskGroupView: View {
         self.group = group
         self.showCheckbox = showCheckbox
         self.isDoneStyle = isDoneStyle
+        self.highlightedTaskId = highlightedTaskId
         self.onToggle = onToggle
         self.onTap = onTap
         self.onProjectTap = onProjectTap
@@ -972,6 +1069,7 @@ struct ProjectTaskGroupView: View {
                         task: task,
                         isDoneStyle: isDoneStyle,
                         isExpanded: expandedTaskIds.contains(task.id),
+                        isHighlighted: highlightedTaskId == task.id,
                         onToggle: { onToggle(task.id) },
                         onTap: { onTap(task.id) },
                         onExpand: {
@@ -1024,6 +1122,7 @@ struct ProjectTaskRow: View {
     let task: ActivityViewModel.TaskItem
     var isDoneStyle: Bool = false
     var isExpanded: Bool = false
+    var isHighlighted: Bool = false
     let onToggle: () -> Void
     let onTap: () -> Void
     let onExpand: () -> Void
@@ -1036,7 +1135,7 @@ struct ProjectTaskRow: View {
             } label: {
                 Image(systemName: isDoneStyle ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22))
-                    .foregroundStyle(isDoneStyle ? .green : .secondary)
+                    .foregroundStyle(isDoneStyle ? .green : (isHighlighted ? Theme.primary : .secondary))
             }
             .buttonStyle(.plain)
 
@@ -1109,6 +1208,7 @@ struct ProjectTaskRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .background(isHighlighted ? Theme.primaryLight : Color.clear)
         .contentShape(Rectangle())
     }
 

@@ -95,6 +95,80 @@ final class ProjectChatViewModel {
         project.tasks.filter { $0.status == .done }
     }
 
+    // New tasks assigned to current user (not yet acknowledged)
+    var newTasksForCurrentUser: [DONEOTask] {
+        project.tasks.filter { task in
+            task.isNew(for: currentUser.id)
+        }
+    }
+
+    var newTasksCount: Int {
+        newTasksForCurrentUser.count
+    }
+
+    // MARK: - Accept/Decline Tasks
+
+    func acceptTask(_ task: DONEOTask, message: String?) {
+        guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }) else { return }
+
+        // Mark as acknowledged
+        project.tasks[taskIndex].acknowledgedBy.insert(currentUser.id)
+
+        // Send acceptance message
+        let userMessage = message?.isEmpty == false ? ": \(message!)" : ""
+        let content = "✓ Accepted\(userMessage)"
+        let chatMessage = Message(
+            content: content,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: TaskReference(task: task)
+        )
+        project.messages.append(chatMessage)
+
+        // Update project
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName) accepted \(task.title)"
+        MockDataService.shared.updateProject(project)
+    }
+
+    func declineTask(_ task: DONEOTask, reason: String?) {
+        guard let taskIndex = project.tasks.firstIndex(where: { $0.id == task.id }) else { return }
+
+        // Send decline message
+        let userMessage = reason?.isEmpty == false ? ": \(reason!)" : ""
+        let content = "✗ Declined\(userMessage)"
+        let chatMessage = Message(
+            content: content,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: TaskReference(task: task)
+        )
+        project.messages.append(chatMessage)
+
+        // Remove current user from assignees
+        project.tasks[taskIndex].assignees.removeAll { $0.id == currentUser.id }
+
+        // Update project
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName) declined \(task.title)"
+        MockDataService.shared.updateProject(project)
+    }
+
+    func sendTaskQuestion(_ task: DONEOTask, message: String) {
+        let chatMessage = Message(
+            content: message,
+            sender: currentUser,
+            isFromCurrentUser: true,
+            referencedTask: TaskReference(task: task)
+        )
+        project.messages.append(chatMessage)
+
+        // Update project
+        project.lastActivity = Date()
+        project.lastActivityPreview = "\(currentUser.displayFirstName): \(message)"
+        MockDataService.shared.updateProject(project)
+    }
+
     func addTask(title: String, assignees: [User] = [], subtasks: [Subtask] = [], dueDate: Date? = nil, notes: String? = nil) {
         guard !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
 

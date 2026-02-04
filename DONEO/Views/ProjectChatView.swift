@@ -6,6 +6,7 @@ struct ProjectChatView: View {
     @State private var showingProjectInfo = false
     @State private var showingTaskDrawer = false
     @State private var showingAttachmentOptions = false
+    @State private var showingNewTasksInbox = false
     @FocusState private var isInputFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -31,6 +32,29 @@ struct ProjectChatView: View {
             ToolbarItem(placement: .principal) {
                 headerView
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                if viewModel.newTasksCount > 0 {
+                    Button {
+                        showingNewTasksInbox = true
+                    } label: {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "tray.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Theme.primary)
+
+                            // Badge
+                            Text("\(viewModel.newTasksCount)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Theme.primary)
+                                .clipShape(Capsule())
+                                .offset(x: 8, y: -6)
+                        }
+                    }
+                }
+            }
         }
         .toolbar(.hidden, for: .tabBar)
         .sheet(isPresented: $showingTaskDrawer) {
@@ -43,6 +67,11 @@ struct ProjectChatView: View {
         }
         .sheet(isPresented: $showingAttachmentOptions) {
             ProjectAttachmentSheet(viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingNewTasksInbox) {
+            ProjectNewTasksInboxSheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -1368,6 +1397,327 @@ struct AttachmentUploadSheet: View {
                     .disabled(selectedCount == 0)
                 }
             }
+        }
+    }
+}
+
+// MARK: - New Tasks Inbox Sheet
+
+struct ProjectNewTasksInboxSheet: View {
+    @Bindable var viewModel: ProjectChatViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedTask: DONEOTask?
+    @State private var showTaskDetail = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if viewModel.newTasksForCurrentUser.isEmpty {
+                    ContentUnavailableView(
+                        "All Caught Up",
+                        systemImage: "tray",
+                        description: Text("No new task assignments")
+                    )
+                } else {
+                    ScrollView {
+                        VStack(spacing: 12) {
+                            ForEach(viewModel.newTasksForCurrentUser) { task in
+                                NewTaskInboxRow(task: task) {
+                                    selectedTask = task
+                                    showTaskDetail = true
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("New Tasks")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(isPresented: $showTaskDetail) {
+                if let task = selectedTask {
+                    NewTaskInboxDetailSheet(
+                        task: task,
+                        projectName: viewModel.project.name,
+                        viewModel: viewModel,
+                        onAction: { action, message in
+                            switch action {
+                            case .accept:
+                                viewModel.acceptTask(task, message: message)
+                            case .decline:
+                                viewModel.declineTask(task, reason: message ?? "I can't take this on")
+                            case .ask:
+                                if let msg = message, !msg.isEmpty {
+                                    viewModel.sendTaskQuestion(task, message: msg)
+                                }
+                            }
+                            showTaskDetail = false
+                            selectedTask = nil
+                        },
+                        onCancel: {
+                            showTaskDetail = false
+                            selectedTask = nil
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// MARK: - New Task Inbox Row
+
+struct NewTaskInboxRow: View {
+    let task: DONEOTask
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Blue indicator dot
+                Circle()
+                    .fill(Theme.primary)
+                    .frame(width: 10, height: 10)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(task.title)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        if task.isOverdue {
+                            Text("OVERDUE")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.red)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        } else if task.isDueToday {
+                            Text("TODAY")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        if let createdBy = task.createdBy {
+                            Text("from \(createdBy.displayFirstName)")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let dueDate = task.dueDate, !task.isOverdue && !task.isDueToday {
+                            if task.createdBy != nil {
+                                Text("•")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(formatDueDate(dueDate))
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if !task.subtasks.isEmpty {
+                            if task.createdBy != nil || task.dueDate != nil {
+                                Text("•")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            HStack(spacing: 3) {
+                                Image(systemName: "checklist")
+                                    .font(.system(size: 10))
+                                Text("\(task.subtasks.count)")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding()
+            .background(Color(uiColor: .systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        if Calendar.current.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - New Task Inbox Detail Sheet
+
+struct NewTaskInboxDetailSheet: View {
+    let task: DONEOTask
+    let projectName: String
+    @Bindable var viewModel: ProjectChatViewModel
+    let onAction: (NewTaskAction, String?) -> Void
+    let onCancel: () -> Void
+
+    @State private var messageText = ""
+    @State private var selectedAction: NewTaskAction = .accept
+
+    enum NewTaskAction {
+        case accept, decline, ask
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // Task header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(task.title)
+                            .font(.system(size: 20, weight: .semibold))
+
+                        HStack(spacing: 8) {
+                            if let createdBy = task.createdBy {
+                                Label("from \(createdBy.displayFirstName)", systemImage: "person")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let dueDate = task.dueDate {
+                                Label(dueDate.formatted(.dateTime.month(.abbreviated).day()), systemImage: "calendar")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(task.isOverdue ? .red : (task.isDueToday ? .orange : .secondary))
+                            }
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    // Notes section
+                    if let notes = task.notes, !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Notes", systemImage: "doc.text")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            Text(notes)
+                                .font(.system(size: 15))
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+
+                    // Subtasks section
+                    if !task.subtasks.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("\(task.subtasks.count) Subtasks", systemImage: "checklist")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.secondary)
+
+                            ForEach(task.subtasks) { subtask in
+                                HStack(spacing: 8) {
+                                    Image(systemName: "circle")
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.tertiary)
+                                    Text(subtask.title)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+
+                    // Response section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Your Response")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+
+                        // Action picker
+                        Picker("Action", selection: $selectedAction) {
+                            Text("Accept").tag(NewTaskAction.accept)
+                            Text("Decline").tag(NewTaskAction.decline)
+                            Text("Ask").tag(NewTaskAction.ask)
+                        }
+                        .pickerStyle(.segmented)
+
+                        // Message field
+                        TextField(placeholderText, text: $messageText, axis: .vertical)
+                            .lineLimit(3...6)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    .padding()
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .padding()
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle(projectName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(actionButtonText) {
+                        onAction(selectedAction, messageText.isEmpty ? nil : messageText)
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundStyle(actionButtonColor)
+                    .disabled(selectedAction == .ask && messageText.isEmpty)
+                }
+            }
+        }
+    }
+
+    private var placeholderText: String {
+        switch selectedAction {
+        case .accept: return "Add a message (optional)"
+        case .decline: return "Reason for declining (optional)"
+        case .ask: return "What would you like to ask?"
+        }
+    }
+
+    private var actionButtonText: String {
+        switch selectedAction {
+        case .accept: return "Accept"
+        case .decline: return "Decline"
+        case .ask: return "Send"
+        }
+    }
+
+    private var actionButtonColor: Color {
+        switch selectedAction {
+        case .accept: return .green
+        case .decline: return .red
+        case .ask: return Theme.primary
         }
     }
 }
