@@ -93,6 +93,7 @@ final class ActivityViewModel {
         let projectName: String
         let projectId: UUID
         var tasks: [TaskItem]
+        var newTasksCount: Int { tasks.filter { $0.isNew }.count }
     }
 
     struct SubtaskItem: Identifiable {
@@ -150,23 +151,25 @@ final class ActivityViewModel {
         let projectId: UUID
         let createdBy: User?
         let createdAt: Date
+        let isNew: Bool // Unacknowledged task
+        let createdByName: String? // For display in new tasks
     }
 
     var myTasksByProject: [ProjectTaskGroup] {
         var groups: [ProjectTaskGroup] = []
 
         for project in dataService.projects {
-            // Tasks assigned to current user that are acknowledged and pending
+            // ALL pending tasks assigned to current user (both new and acknowledged)
             let myTasks = project.tasks.filter { task in
                 task.status == .pending &&
-                task.assignees.contains(where: { $0.id == currentUser.id }) &&
-                task.isAcknowledged(by: currentUser.id)
+                task.assignees.contains(where: { $0.id == currentUser.id })
             }
 
             if !myTasks.isEmpty {
                 let taskItems = myTasks.map { task -> TaskItem in
                     let doneSubtasks = task.subtasks.filter { $0.isDone }.count
                     let totalSubtasks = task.subtasks.count
+                    let isNew = !task.isAcknowledged(by: currentUser.id)
                     let subtaskItems = task.subtasks.map { SubtaskItem(id: $0.id, title: $0.title, isDone: $0.isDone, description: $0.description, dueDate: $0.dueDate, createdBy: $0.createdBy, createdAt: $0.createdAt) }
                     let refAttachments = task.attachments.filter { $0.category == .reference }.map {
                         AttachmentItem(id: $0.id, type: $0.type, category: $0.category, fileName: $0.fileName, fileSize: $0.fileSize, uploadedByName: $0.uploadedBy.name, uploadedAt: $0.uploadedAt, caption: $0.caption)
@@ -186,20 +189,33 @@ final class ActivityViewModel {
                         workAttachments: workAttachments,
                         projectId: project.id,
                         createdBy: task.createdBy,
-                        createdAt: task.createdAt
+                        createdAt: task.createdAt,
+                        isNew: isNew,
+                        createdByName: task.createdBy?.displayFirstName
                     )
+                }
+                // Sort: new tasks first, then by due date
+                let sortedTasks = taskItems.sorted { t1, t2 in
+                    if t1.isNew != t2.isNew { return t1.isNew }
+                    if let d1 = t1.dueDate, let d2 = t2.dueDate { return d1 < d2 }
+                    if t1.dueDate != nil { return true }
+                    return false
                 }
 
                 groups.append(ProjectTaskGroup(
                     id: project.id,
                     projectName: project.name,
                     projectId: project.id,
-                    tasks: taskItems
+                    tasks: sortedTasks
                 ))
             }
         }
 
         return groups
+    }
+
+    var totalNewTasksCount: Int {
+        myTasksByProject.reduce(0) { $0 + $1.newTasksCount }
     }
 
     // MARK: - Done Tasks (grouped by project)
@@ -237,7 +253,9 @@ final class ActivityViewModel {
                         workAttachments: workAttachments,
                         projectId: project.id,
                         createdBy: task.createdBy,
-                        createdAt: task.createdAt
+                        createdAt: task.createdAt,
+                        isNew: false,
+                        createdByName: task.createdBy?.displayFirstName
                     )
                 }
 
@@ -387,8 +405,7 @@ final class ActivityViewModel {
 // MARK: - Activity Tab
 
 enum ActivityTab: String, CaseIterable {
-    case new = "New"
-    case active = "Active"
+    case myTasks = "My Tasks"
     case done = "Done"
 }
 
@@ -397,7 +414,7 @@ enum ActivityTab: String, CaseIterable {
 struct ActivityView: View {
     @State private var viewModel = ActivityViewModel()
     @State private var navigationPath = NavigationPath()
-    @State private var selectedTab: ActivityTab = .active
+    @State private var selectedTab: ActivityTab = .myTasks
     @State private var selectedNewTask: ActivityViewModel.NewTaskItem?
     @State private var showTaskDetailSheet = false
     @State private var selectedMyTask: (task: ActivityViewModel.TaskItem, group: ActivityViewModel.ProjectTaskGroup)?
@@ -416,11 +433,8 @@ struct ActivityView: View {
 
                 // Tab content
                 TabView(selection: $selectedTab) {
-                    newTasksTab
-                        .tag(ActivityTab.new)
-
-                    activeTasksTab
-                        .tag(ActivityTab.active)
+                    myTasksTab
+                        .tag(ActivityTab.myTasks)
 
                     doneTasksTab
                         .tag(ActivityTab.done)
@@ -555,16 +569,29 @@ struct ActivityView: View {
                             Text(tab.rawValue)
                                 .font(.system(size: 15, weight: selectedTab == tab ? .semibold : .medium))
 
-                            // Badge count
-                            let count = countForTab(tab)
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(selectedTab == tab ? .white : .secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(selectedTab == tab ? colorForTab(tab) : Color(uiColor: .tertiarySystemFill))
-                                    .clipShape(Capsule())
+                            // Badge count - show new count for myTasks tab
+                            if tab == .myTasks {
+                                let newCount = viewModel.totalNewTasksCount
+                                if newCount > 0 {
+                                    Text("\(newCount) new")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Theme.primary)
+                                        .clipShape(Capsule())
+                                }
+                            } else {
+                                let count = countForTab(tab)
+                                if count > 0 {
+                                    Text("\(count)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(selectedTab == tab ? .white : .secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(selectedTab == tab ? colorForTab(tab) : Color(uiColor: .tertiarySystemFill))
+                                        .clipShape(Capsule())
+                                }
                             }
                         }
                         .foregroundStyle(selectedTab == tab ? colorForTab(tab) : .secondary)
@@ -585,74 +612,50 @@ struct ActivityView: View {
 
     private func countForTab(_ tab: ActivityTab) -> Int {
         switch tab {
-        case .new: return viewModel.newTasksCount
-        case .active: return viewModel.myTasksByProject.flatMap { $0.tasks }.count
+        case .myTasks: return viewModel.myTasksByProject.flatMap { $0.tasks }.count
         case .done: return viewModel.doneTasksByProject.flatMap { $0.tasks }.count
         }
     }
 
     private func colorForTab(_ tab: ActivityTab) -> Color {
         switch tab {
-        case .new: return Theme.primary
-        case .active: return .orange
+        case .myTasks: return Theme.primary
         case .done: return .green
         }
     }
 
-    // MARK: - New Tasks Tab
+    // MARK: - My Tasks Tab (combined new + active)
 
-    private var newTasksTab: some View {
-        ScrollView {
-            if viewModel.newTasksByProject.isEmpty {
-                emptyStateView(
-                    icon: "bell.slash",
-                    title: "No new tasks",
-                    subtitle: "New task assignments will appear here"
-                )
-            } else {
-                VStack(spacing: 16) {
-                    ForEach(viewModel.newTasksByProject) { group in
-                        NewTaskGroupView(
-                            group: group,
-                            onTap: { task in
-                                selectedNewTask = task
-                                showTaskDetailSheet = true
-                            },
-                            onProjectTap: {
-                                navigationPath.append(group.projectId)
-                            }
-                        )
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 20)
-            }
-        }
-    }
-
-    // MARK: - Active Tasks Tab
-
-    private var activeTasksTab: some View {
+    private var myTasksTab: some View {
         ScrollView {
             if viewModel.myTasksByProject.isEmpty {
                 emptyStateView(
                     icon: "checkmark.circle",
                     title: "All caught up!",
-                    subtitle: "No active tasks right now"
+                    subtitle: "No tasks assigned to you right now"
                 )
             } else {
                 VStack(spacing: 16) {
                     ForEach(viewModel.myTasksByProject) { group in
-                        ProjectTaskGroupView(
+                        MyTasksGroupView(
                             group: group,
-                            showCheckbox: true,
                             onToggle: { taskId in
                                 withAnimation(.spring(response: 0.3)) {
                                     viewModel.toggleTask(projectId: group.projectId, taskId: taskId)
                                 }
                             },
-                            onTap: { taskId in
-                                if let task = group.tasks.first(where: { $0.id == taskId }) {
+                            onTap: { task in
+                                if task.isNew {
+                                    // Show accept/decline sheet for new tasks
+                                    let newTaskItem = viewModel.newTasksByProject
+                                        .flatMap { $0.tasks }
+                                        .first { $0.taskId == task.id }
+                                    if let newTask = newTaskItem {
+                                        selectedNewTask = newTask
+                                        showTaskDetailSheet = true
+                                    }
+                                } else {
+                                    // Show task detail sheet for active tasks
                                     selectedMyTask = (task: task, group: group)
                                     showMyTaskDetailSheet = true
                                 }
@@ -1093,6 +1096,270 @@ struct ProjectTaskRow: View {
 
             // Expand button (only if has subtasks)
             if !task.subtasks.isEmpty {
+                Button {
+                    onExpand()
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+
+    private func formatDueDate(_ date: Date) -> String {
+        if Calendar.current.isDateInTomorrow(date) {
+            return "Tomorrow"
+        } else {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+    }
+}
+
+// MARK: - My Tasks Group View (combined new + active)
+
+struct MyTasksGroupView: View {
+    let group: ActivityViewModel.ProjectTaskGroup
+    let onToggle: (UUID) -> Void
+    let onTap: (ActivityViewModel.TaskItem) -> Void
+    let onProjectTap: () -> Void
+    let onSubtaskToggle: ((UUID, UUID) -> Void)?
+    let onSubtaskTap: ((UUID, UUID) -> Void)?
+
+    @State private var expandedTaskIds: Set<UUID> = []
+
+    init(group: ActivityViewModel.ProjectTaskGroup,
+         onToggle: @escaping (UUID) -> Void,
+         onTap: @escaping (ActivityViewModel.TaskItem) -> Void,
+         onProjectTap: @escaping () -> Void,
+         onSubtaskToggle: ((UUID, UUID) -> Void)? = nil,
+         onSubtaskTap: ((UUID, UUID) -> Void)? = nil) {
+        self.group = group
+        self.onToggle = onToggle
+        self.onTap = onTap
+        self.onProjectTap = onProjectTap
+        self.onSubtaskToggle = onSubtaskToggle
+        self.onSubtaskTap = onSubtaskTap
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Project header - tappable to go to project
+            Button {
+                onProjectTap()
+            } label: {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(Theme.primaryLight)
+                        .frame(width: 28, height: 28)
+                        .overlay {
+                            Text(String(group.projectName.prefix(1)).uppercased())
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Theme.primary)
+                        }
+
+                    Text(group.projectName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    // Show new tasks badge if any
+                    if group.newTasksCount > 0 {
+                        Text("\(group.newTasksCount)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Theme.primary)
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color(uiColor: .secondarySystemGroupedBackground))
+            }
+            .buttonStyle(.plain)
+
+            // Tasks
+            ForEach(group.tasks) { task in
+                VStack(spacing: 0) {
+                    MyTaskRow(
+                        task: task,
+                        isExpanded: expandedTaskIds.contains(task.id),
+                        onToggle: { onToggle(task.id) },
+                        onTap: { onTap(task) },
+                        onExpand: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if expandedTaskIds.contains(task.id) {
+                                    expandedTaskIds.remove(task.id)
+                                } else {
+                                    expandedTaskIds.insert(task.id)
+                                }
+                            }
+                        }
+                    )
+
+                    // Subtasks (when expanded) - only for active tasks
+                    if !task.isNew && expandedTaskIds.contains(task.id) && !task.subtasks.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(task.subtasks) { subtask in
+                                ActivitySubtaskRow(
+                                    subtask: subtask,
+                                    isDoneStyle: false,
+                                    onToggle: { onSubtaskToggle?(task.id, subtask.id) },
+                                    onTap: { onSubtaskTap?(task.id, subtask.id) }
+                                )
+
+                                if subtask.id != task.subtasks.last?.id {
+                                    Divider()
+                                        .padding(.leading, 56)
+                                }
+                            }
+                        }
+                        .padding(.leading, 34)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.5))
+                    }
+                }
+
+                if task.id != group.tasks.last?.id {
+                    Divider()
+                        .padding(.leading, 48)
+                }
+            }
+        }
+        .background(Color(uiColor: .systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - My Task Row
+
+struct MyTaskRow: View {
+    let task: ActivityViewModel.TaskItem
+    var isExpanded: Bool = false
+    let onToggle: () -> Void
+    let onTap: () -> Void
+    let onExpand: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Checkbox or NEW indicator
+            if task.isNew {
+                // Red dot for new tasks
+                Circle()
+                    .fill(Theme.primary)
+                    .frame(width: 8, height: 8)
+                    .padding(.horizontal, 7)
+            } else {
+                // Checkbox for active tasks
+                Button {
+                    onToggle()
+                } label: {
+                    Image(systemName: "circle")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Main content - tappable for details
+            Button {
+                onTap()
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(task.title)
+                            .font(.system(size: 15))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        // NEW badge for unacknowledged tasks
+                        if task.isNew {
+                            Text("NEW")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Theme.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
+                    }
+
+                    HStack(spacing: 6) {
+                        // Show "from [Creator]" for new tasks
+                        if task.isNew, let creatorName = task.createdByName {
+                            Text("from \(creatorName)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // Overdue/Today indicator
+                        if task.isOverdue {
+                            Text("OVERDUE")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.red)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        } else if task.isDueToday {
+                            Text("TODAY")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
+
+                        if let progress = task.subtaskProgress {
+                            HStack(spacing: 3) {
+                                Image(systemName: "checklist")
+                                    .font(.system(size: 10))
+                                Text("\(progress.done)/\(progress.total)")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+
+                        // Attachments indicator
+                        let attachmentCount = task.referenceAttachments.count + task.workAttachments.count
+                        if attachmentCount > 0 {
+                            HStack(spacing: 3) {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: 10))
+                                Text("\(attachmentCount)")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+
+                        if let dueDate = task.dueDate, !task.isOverdue && !task.isDueToday {
+                            Text(formatDueDate(dueDate))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            // Expand/chevron button
+            if task.isNew {
+                // Chevron for new tasks (to view details)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 24, height: 24)
+            } else if !task.subtasks.isEmpty {
+                // Expand button for active tasks with subtasks
                 Button {
                     onExpand()
                 } label: {
